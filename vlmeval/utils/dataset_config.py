@@ -26,6 +26,7 @@ dataset_URLs = {
     "DocVQA_VAL": "https://opencompass.openxlab.space/utils/VLMEval/DocVQA_VAL.tsv",
     'AI2D_TEST': "https://opencompass.openxlab.space/utils/VLMEval/AI2D_TEST.tsv",
     "LLaVABench": "https://opencompass.openxlab.space/utils/VLMEval/LLaVABench.tsv",
+    "OCRBench": 'https://opencompass.openxlab.space/utils/VLMEval/OCRBench.tsv',
 }
 
 dataset_md5_dict = {
@@ -44,16 +45,17 @@ dataset_md5_dict = {
     'OCRVQA_TEST': 'ca46a6d74b403e9d6c0b670f6fc00db9',
     'OCRVQA_TESTCORE': 'c5239fe77db8bdc1f2ad8e55e0d1fe97',
     'TextVQA_VAL': 'b233b31f551bbf4056f2f955da3a92cd',
-    'MMMU_DEV_VAL': "501f84dc642a9b17e35363b78c0191e1",
-    'MMMU_TEST': "38e93b57d3037b19c3b98ad6144a2dd9",
+    'MMMU_DEV_VAL': "521afc0f3bf341e6654327792781644d",
+    'MMMU_TEST': "c19875d11a2d348d07e5eb4bdf33166d",
     'MathVista_MINI': 'f199b98e178e5a2a20e7048f5dcb0464',
     'ChartQA_VALTEST_HUMAN':'2c90a4133408a21d57fb2ea26f77bbfc',
     'ScienceQA_VAL': '96320d05e142e585e7204e72affd29f3',
     'ScienceQA_TEST': 'e42e9e00f9c59a80d8a5db35bc32b71f',
     'HallusionBench': '0c23ac0dc9ef46832d7a24504f2a0c7c',
-    "DocVQA_VAL": 'c911fdc5f4974513c112cc83a25c99d9',
+    "DocVQA_VAL": 'ee0d8ae5527439438d08e154ef65d735',
     "AI2D_TEST": "0f593e0d1c7df9a3d69bf1f947e71975",
-    "LLaVABench": "d382a093f749a697820d3dadd61c8428"
+    "LLaVABench": "d382a093f749a697820d3dadd61c8428",
+    "OCRBench": 'e953d98a987cc6e26ef717b61260b778',
 }
 
 img_root_map = {k: k for k in dataset_URLs}
@@ -73,18 +75,20 @@ img_root_map.update({
     'ChartQA_VALTEST_HUMAN': 'ChartQA',
     'HallusionBench': 'Hallusion',
     'DocVQA_VAL': 'DocVQA',
+    "OCRBench": 'OCRBench',
 })
 
 assert set(dataset_URLs) == set(img_root_map) == set(dataset_md5_dict)
 
 def DATASET_TYPE(dataset):
-    if listinstr(['mmbench', 'seedbench', 'ccbench', 'mmmu', 'scienceqa', 'ai2d'], dataset.lower()):
+    dataset = dataset.lower()
+    if listinstr(['mmbench', 'seedbench', 'ccbench', 'mmmu', 'scienceqa', 'ai2d'], dataset):
         return 'multi-choice'
-    elif 'MME' in dataset:
+    elif listinstr(['mme', 'hallusion'], dataset):
         return 'Y/N'
-    elif 'COCO' in dataset:
+    elif 'coco' in dataset:
         return 'Caption'
-    elif listinstr(['ocrvqa', 'textvqa', 'chartqa', 'mathvista', 'docvqa'], dataset.lower()):
+    elif listinstr(['ocrvqa', 'textvqa', 'chartqa', 'mathvista', 'docvqa', 'llavabench', 'mmvet', 'OCRBench'], dataset):
         return 'VQA'
     else:
         return 'QA'

@@ -22,6 +22,24 @@ from tabulate import tabulate_formats, tabulate
 from huggingface_hub import scan_cache_dir
 from sty import fg, bg, ef, rs
 
+def process_punctuation(inText):
+    import re
+    outText = inText
+    punct = [
+        ';', r'/', '[', ']', '"', '{', '}', '(', ')', '=', '+', '\\', '_', '-',
+        '>', '<', '@', '`', ',', '?', '!'
+    ]
+    commaStrip = re.compile('(\d)(,)(\d)')  # noqa: W605
+    periodStrip = re.compile('(?!<=\d)(\.)(?!\d)')  # noqa: W605
+    for p in punct:
+        if (p + ' ' in inText or ' ' + p in inText) or (re.search(
+                commaStrip, inText) is not None):
+            outText = outText.replace(p, '')
+        else:
+            outText = outText.replace(p, ' ')
+    outText = periodStrip.sub('', outText, re.UNICODE)
+    return outText
+
 def h2r(value):
     if value[0] == '#':
         value = value[1:]
@@ -33,6 +51,8 @@ def r2h(rgb):
 
 def colored(s, color):
     if isinstance(color, str):
+        if hasattr(fg, color):
+            return getattr(fg, color) + s + fg.rs
         color = h2r(color)
     return fg(*color) + s + fg.rs
 
