@@ -8,6 +8,7 @@ from .idefics import IDEFICS
 from .instructblip import InstructBLIP
 from .llava import LLaVA
 from .llava_xtuner import LLaVA_XTuner
+from .llava_xtuner_video import LLaVA_XTuner_VIDEO
 from .minicpm_v import MiniCPM_V
 from .minigpt4 import MiniGPT4
 from .mmalaya import MMAlaya

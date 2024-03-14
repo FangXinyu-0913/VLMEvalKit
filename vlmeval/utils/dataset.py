@@ -48,7 +48,7 @@ class TSVDataset(CustomPrompt):
         url = dataset_URLs[dataset]
         file_name = url.split('/')[-1]
         data_path = osp.join(self.data_root, file_name)
-
+        print(data_path)
         if osp.exists(data_path) and md5(data_path) == dataset_md5_dict[dataset]:
             pass
         else:
@@ -57,35 +57,38 @@ class TSVDataset(CustomPrompt):
 
         data = load(data_path)
         self.skip_noimg = skip_noimg
-        if skip_noimg:
-            data = data[~pd.isna(data['image'])]
-
-        # Prompt for Captioning
-        if listinstr(['COCO'], dataset):
-            data['question'] = ['Please describe this image in general. Directly provide the description, do not include prefix like "This image depicts". '] * len(data)
-
-        data['index'] = [str(x) for x in data['index']]
-        data['image'] = [str(x) for x in data['image']]
-        
-        image_map = {x: y for x, y in zip(data['index'], data['image'])}
-        for k in image_map:
-            if len(image_map[k]) <= 64:
-                idx = image_map[k]
-                assert idx in image_map and len(image_map[idx]) > 64
-                image_map[k] = image_map[idx]
-    
-        data['image'] = [
-            eval(image_map[k]) if isliststr(image_map[k]) else image_map[k] 
-            for k in data['index']
-        ]
-        if 'image_path' in data:
-            data['image_path'] = [
-                eval(pths) if isliststr(pths) else pths for pths in data['image_path']
-            ]
-        if np.all([istype(x, int) for x in data['index']]):
-            data['index'] = [int(x) for x in data['index']]
+        if 'video_path' in data:
+            self.data = data
             
-        self.data = data
+        # if skip_noimg:
+        #     data = data[~pd.isna(data['image'])]
+
+        # # Prompt for Captioning
+        # if listinstr(['COCO'], dataset):
+        #     data['question'] = ['Please describe this image in general. Directly provide the description, do not include prefix like "This image depicts". '] * len(data)
+
+        # data['index'] = [str(x) for x in data['index']]
+        # data['image'] = [str(x) for x in data['image']]
+        
+        # image_map = {x: y for x, y in zip(data['index'], data['image'])}
+        # for k in image_map:
+        #     if len(image_map[k]) <= 64:
+        #         idx = image_map[k]
+        #         assert idx in image_map and len(image_map[idx]) > 64
+        #         image_map[k] = image_map[idx]
+    
+        # data['image'] = [
+        #     eval(image_map[k]) if isliststr(image_map[k]) else image_map[k] 
+        #     for k in data['index']
+        # ]
+        # if 'image_path' in data:
+        #     data['image_path'] = [
+        #         eval(pths) if isliststr(pths) else pths for pths in data['image_path']
+        #     ]
+        # if np.all([istype(x, int) for x in data['index']]):
+        #     data['index'] = [int(x) for x in data['index']]
+            
+        # self.data = data
 
     def __len__(self):
         return len(self.data)

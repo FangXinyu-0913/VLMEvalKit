@@ -156,3 +156,11 @@ cython_debug/
 images/
 
 scripts/*ttf
+llava-internlm2-7b-chat-video-0302/msrvtt-gpt/*.json
+llava-internlm2-7b-chat-video-0302/MSRVTT_EVAL_RESULT/*
+llava-internlm2-7b-chat-video-0302/msvd-gpt-video0302/*
+llava-internlm2-7b-chat-video-0302/MSVD_EVAL_RESULT/*
+llava-internlm2-7b-chat-video-0302/videollava_org/*
+llava-internlm2-7b-chat-video-12000/*
+llava-internlm2-7b-chat-video-0302/*
+llava-internlm2-7b-chat-video/*

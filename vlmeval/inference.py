@@ -109,6 +109,8 @@ def infer_data(model_name, work_dir, dataset_name, out_file, verbose=False, api_
 
         if hasattr(model, 'use_custom_prompt') and model.use_custom_prompt(dataset_name):
             struct = model.build_prompt(data.iloc[i], dataset=dataset_name)
+        elif 'video_path' in data.iloc[i].keys():
+            struct = 'empty'
         else:
             struct = dataset.build_prompt(data.iloc[i])
 
@@ -122,6 +124,8 @@ def infer_data(model_name, work_dir, dataset_name, out_file, verbose=False, api_
                 response = model.generate(prompt=struct['text'], image_path=struct['image'][0], dataset=dataset_name)
             else:
                 response = '[MMMU] Failed, multiple images exist while the model only support single-image generate API. '
+        elif 'video_path' in data.iloc[i].keys():
+            response = model.generate(prompt=data.iloc[i]['question'], video_path=data.iloc[i]['video_path'], dataset=dataset_name)
         else:
             response = model.generate(prompt=struct['text'], image_path=struct['image'], dataset=dataset_name)
         torch.cuda.empty_cache()
