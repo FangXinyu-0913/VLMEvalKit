@@ -87,7 +87,7 @@ def prepare_inputs_labels_for_multimodal_VIDEO(
     new_labels = []
     cur_image_idx = 0
     for batch_idx, (cur_input_ids, instance) in enumerate(zip(input_ids,instance_list)):
-        num_images = (cur_input_ids == IMAGE_TOKEN_INDEX).sum()
+        num_images = (cur_input_ids == VIDEO_TOKEN_INDEX).sum()
         if instance == 'video':
             num_videos = 1
             num_images = 0
@@ -108,7 +108,7 @@ def prepare_inputs_labels_for_multimodal_VIDEO(
         
         if num_videos > 0:
             video_token_indices =  [-1] + torch.where(       #[-1, 4, cur_input_ids.shape[0]]
-                cur_input_ids == IMAGE_TOKEN_INDEX)[0].tolist() + [
+                cur_input_ids == VIDEO_TOKEN_INDEX)[0].tolist() + [
                     cur_input_ids.shape[0]
                 ]
             if len(video_token_indices) == 2:
@@ -508,9 +508,9 @@ class LLaVA_XTuner_VIDEO(CustomPrompt):
     def generate(self, video_path, prompt, dataset=None):
         from xtuner.dataset.utils import expand2square
         from xtuner.model.utils import prepare_inputs_labels_for_multimodal
-        from xtuner.utils import DEFAULT_IMAGE_TOKEN, IMAGE_TOKEN_INDEX
+        # from xtuner.utils import DEFAULT_IMAGE_TOKEN, IMAGE_TOKEN_INDEX
         video_decode_backend = 'decord'
-        num_frames = 10
+        num_frames = 10 #TODO
         video = load_and_transform_video(video_path, get_video_transform(video_decode_backend=video_decode_backend,num_frames=num_frames),
                                             video_decode_backend=video_decode_backend,
                                             num_frames=num_frames)
@@ -519,13 +519,13 @@ class LLaVA_XTuner_VIDEO(CustomPrompt):
         pixel_values = self.projector(
             visual_outputs.hidden_states[self.visual_select_layer][:, 1:])
 
-        inputs = DEFAULT_IMAGE_TOKEN + '\n' + prompt
+        inputs = DEFAULT_VIDEO_TOKEN + '\n' + prompt
 
         if self.prompt_template:
             inputs = self.prompt_template['INSTRUCTION'].format(input=inputs)
 
         chunk_encode = []
-        for idx, chunk in enumerate(inputs.split(DEFAULT_IMAGE_TOKEN)):
+        for idx, chunk in enumerate(inputs.split(DEFAULT_VIDEO_TOKEN)):
             if idx == 0:
                 cur_encode = self.tokenizer(chunk)
             else:
@@ -536,7 +536,7 @@ class LLaVA_XTuner_VIDEO(CustomPrompt):
         for idx, cur_chunk_encode in enumerate(chunk_encode):
             ids.extend(cur_chunk_encode['input_ids'])
             if idx != len(chunk_encode) - 1:
-                ids.append(IMAGE_TOKEN_INDEX)
+                ids.append(VIDEO_TOKEN_INDEX)
         ids = torch.tensor(ids).cuda().unsqueeze(0)
         mm_inputs = prepare_inputs_labels_for_multimodal_VIDEO(
             llm=self.llm, input_ids=ids, pixel_values=pixel_values, instance_list=['video'])

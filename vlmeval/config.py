@@ -69,9 +69,11 @@ xtuner_models = {
     'llava-internlm2-7b': partial(LLaVA_XTuner, llm_path='internlm/internlm2-chat-7b', llava_path='xtuner/llava-internlm2-7b', visual_select_layer=-2, prompt_template='internlm2_chat'),
     'llava-internlm2-20b': partial(LLaVA_XTuner, llm_path='internlm/internlm2-chat-20b', llava_path='xtuner/llava-internlm2-20b', visual_select_layer=-2, prompt_template='internlm2_chat'),
     'llava-internlm-7b': partial(LLaVA_XTuner, llm_path='internlm/internlm-chat-7b', llava_path='xtuner/llava-internlm-7b', visual_select_layer=-2, prompt_template='internlm_chat'),
-    'llava-v1.5-7b-xtuner': partial(LLaVA_XTuner, llm_path='lmsys/vicuna-7b-v1.5', llava_path='xtuner/llava-v1.5-7b-xtuner', visual_select_layer=-2, prompt_template='vicuna'),
+    'llava-v1.5-7b-xtuner': partial(LLaVA_XTuner, llm_path='/cpfs01/shared/llmeval/dhd/hub/models--lmsys--vicuna-7b-v1.5/snapshots/de56c35b1763eaae20f4d60efd64af0a9091ebe5', llava_path='/cpfs01/shared/llmeval/dhd/hub/models--xtuner--llava-v1.5-7b-xtuner/snapshots/78784f77e0de4d5f401be5621c39414fc3b05f91', visual_select_layer=-2, prompt_template='vicuna'),
     'llava-v1.5-13b-xtuner': partial(LLaVA_XTuner, llm_path='lmsys/vicuna-13b-v1.5', llava_path='xtuner/llava-v1.5-13b-xtuner', visual_select_layer=-2, prompt_template='vicuna'),
     'llava-internlm2-7b-chat-video-0302': partial(LLaVA_XTuner_VIDEO, llm_path='/cpfs01/shared/llmeval/dhd/hub/models--internlm--internlm2-chat-7b/snapshots/2292b86b21cb856642782cebed0a453997453b1f', llava_path='/cpfs01/user/fangxinyu/xtuner/0302-qlora-result', visual_select_layer=-2, prompt_template='internlm2_chat'),
+    'llava-vicuna-1.5-7b-clip-vit-large-p14-336-0322': partial(LLaVA_XTuner_VIDEO, llm_path='/cpfs01/shared/llmeval/dhd/hub/models--lmsys--vicuna-7b-v1.5/snapshots/de56c35b1763eaae20f4d60efd64af0a9091ebe5', llava_path='/cpfs01/user/fangxinyu/xtuner_result/llava_vicuna_7b_v15_qlora_clip_vit_large_p14_336_lora_e1_gpu8_finetune_video_10frame-0322',visual_select_layer=-2, prompt_template='vicuna'),
+    # 'llava-internlm2-7b-chat-video-0322': partial(LLaVA_XTuner_VIDEO, llm_path='/cpfs01/shared/llmeval/dhd/hub/models--internlm--internlm2-chat-7b/snapshots/2292b86b21cb856642782cebed0a453997453b1f', llava_path='/cpfs01/user/fangxinyu/xtuner_result/temp', visual_select_layer=-2, prompt_template='internlm2_chat')
 }
 
 supported_VLM = {}
