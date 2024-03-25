@@ -40,6 +40,7 @@ class TSVDataset(CustomPrompt):
     def __init__(self, dataset='MMBench', skip_noimg=True):
 
         self.data_root = LMUDataRoot()
+        self.data_root = '/cpfs01/user/fangxinyu/LMUData'
         assert osp.exists(self.data_root)
 
         self.dataset = dataset
@@ -48,7 +49,7 @@ class TSVDataset(CustomPrompt):
         url = dataset_URLs[dataset]
         file_name = url.split('/')[-1]
         data_path = osp.join(self.data_root, file_name)
-        print(data_path)
+        # print(data_path, md5(data_path), dataset_md5_dict[dataset])
         if osp.exists(data_path) and md5(data_path) == dataset_md5_dict[dataset]:
             pass
         else:

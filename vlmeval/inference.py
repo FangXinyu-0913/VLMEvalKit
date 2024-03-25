@@ -193,7 +193,11 @@ def infer_data_job(model, work_dir, model_name, dataset_name, verbose=False, api
             data = TSVDataset(dataset_name).data
             assert len(data_all) == len(data)
             data['prediction'] = [str(data_all[x]) for x in data['index']]
-            data.pop('image')
+            try:
+                data.pop('image')
+            except:
+                data.pop('video_path')
+
             
             dump(data, result_file)             
             for i in range(world_size):

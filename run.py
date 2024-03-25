@@ -1,7 +1,7 @@
 import torch
 import torch.distributed as dist
 from vlmeval.smp import *
-from vlmeval.evaluate import COCO_eval, YOrN_eval, MMVet_eval, multiple_choice_eval, VQAEval, MathVista_eval, LLaVABench_eval, OCRBench_eval
+from vlmeval.evaluate import COCO_eval, YOrN_eval, MMVet_eval, multiple_choice_eval, VQAEval, MathVista_eval, LLaVABench_eval, OCRBench_eval, Video_eval
 from vlmeval.inference import infer_data_job, prefetch_acc
 from vlmeval.config import supported_VLM
 from vlmeval.utils import dataset_URLs, DATASET_TYPE, abbr2full
@@ -16,6 +16,7 @@ def parse_args():
     parser.add_argument("--ignore", action='store_true', help="Ignore failed indices. ")
     parser.add_argument("--verbose", action='store_true')
     parser.add_argument("--prefetch", action='store_true')
+    parser.add_argument("--num_frames", type=int, default=10)
     args = parser.parse_args()
     return args
 
@@ -94,6 +95,11 @@ def main():
                     MathVista_eval(result_file, model='gpt-4-turbo', nproc=args.nproc, verbose=args.verbose)
                 elif listinstr(['LLaVABench'], dataset_name):
                     LLaVABench_eval(result_file, model='gpt-4-turbo', nproc=args.nproc, verbose=args.verbose)
+                elif listinstr(['MSRVTT', 'MSVD', 'ActivityNet', 'MSRVTT_MINOR'], dataset_name):
+                    output_dir = f'{pred_root}/eval_{dataset_name}'
+                    output_json = f'{output_dir}/eval_results_{model_name}_{dataset_name}.json'
+                    score_result_file = f'{output_dir}/eval_scores_{model_name}_{dataset_name}.xlsx'
+                    Video_eval(result_file, dataset_name, output_dir, output_json, score_result_file, model='gpt-3.5-turbo-0125', nproc=args.nproc, verbose=args.verbose)
                 else:
                     logger.error(f'Dataset {dataset_name} is not handled by evaluator, will be skipped. ')
             

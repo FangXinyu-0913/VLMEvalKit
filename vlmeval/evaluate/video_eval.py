@@ -1,3 +1,4 @@
+from openai import OpenAI
 import openai
 # from openai import OpenAI
 import os
@@ -7,7 +8,15 @@ import ast
 from multiprocessing.pool import Pool
 from tqdm import tqdm
 import time
+from vlmeval.smp import *
 
+api_key="sk-UTzInM2T6ss8UML2E8874740Ae8e4874Ac416d8138379675"
+os.environ['OPENAI_API_BASE']="https://api1.zhtec.xyz/v1"
+
+client = OpenAI(
+    api_key=api_key,
+    # api_base=api_base
+)
 def parse_args():
     parser = argparse.ArgumentParser(description="question-answer-generation-using-gpt-3")
     parser.add_argument("--pred_path", default=r'', help="The path to file containing prediction.")
@@ -20,15 +29,12 @@ def parse_args():
     return args
 
 
-def annotate(prediction_set, caption_files, output_dir, args):
+def annotate(prediction_set, caption_files, output_dir):
     """
     Evaluates question and answer pairs using GPT-3
     Returns a score for correctness.
     """
-    # Set the OpenAI API key.
-    openai.api_key = args.api_key
-    if args.api_base is not None:
-        openai.api_base = args.api_base
+
     for file in caption_files:
         key = file[:-5] # Strip file extension
         qa_set = prediction_set[key]
@@ -37,7 +43,7 @@ def annotate(prediction_set, caption_files, output_dir, args):
         pred = qa_set['pred']
         try:
             # Compute the correctness score
-            completion = openai.ChatCompletion.create(
+            completion = client.chat.completions.create(
                 model="gpt-3.5-turbo-0125",
                 messages=[
                     {
@@ -79,6 +85,136 @@ def annotate(prediction_set, caption_files, output_dir, args):
             print(f"Error processing file '{key}': {e}")
             time.sleep(10)
 
+def Video_eval(pred_path, output_dir, output_json, dataset_name, score_result_file, model, nproc, verbose):
+    """
+    Main function to control the flow of the program.
+    """
+    if not os.path.exists(output_json):
+        data = load(pred_path)
+        data['prediction'] = [str(x) for x in data['prediction']]
+        data['answer'] = [str(x) for x in data['answer']]
+        data['id'] = [str(x) for x in data['prediction']]
+        # data['index'] = [str(x) for x in data['answer']]
+        data['question'] = [str(x) for x in data['answer']]
+        new_pred_contents = []
+        for id, q, a, idx, pred in zip(data['id'], data['question'], data['answer'], data['index'], data['prediction']):
+            new_pred_contents.append({'id': id, 'question': q, 'answer': a, 'index': idx, 'pred': pred})
+        
+        # Generating list of id's and corresponding files
+        id_list = [x['id'] for x in new_pred_contents]
+        caption_files = [f"{id}.json" for id in id_list]
+
+        # Generate output directory if not exists.
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+
+        # Preparing dictionary of question-answer sets
+        prediction_set = {}
+        for sample in new_pred_contents:
+            id = sample['id']
+            question = sample['question']
+            answer = sample['answer']
+            pred = sample['pred']
+            qa_set = {"q": question, "a": answer, "pred": pred}
+            prediction_set[id] = qa_set
+
+        num_tasks = verbose
+
+        # While loop to ensure that all captions are processed.
+        while True:
+            try:
+                # Files that have not been processed yet.
+                completed_files = os.listdir(output_dir)
+                print(f"completed_files: {len(completed_files)}")
+
+                # Files that have not been processed yet.
+                incomplete_files = [f for f in caption_files if f not in completed_files]
+                print(f"incomplete_files: {len(incomplete_files)}")
+
+                # Break the loop when there are no incomplete files
+                if len(incomplete_files) == 0:
+                    break
+                if len(incomplete_files) <= num_tasks:
+                    num_tasks = 1
+
+                # Split tasks into parts.
+                part_len = len(incomplete_files) // num_tasks
+                all_parts = [incomplete_files[i:i + part_len] for i in range(0, len(incomplete_files), part_len)]
+                task_args = [(prediction_set, part, output_dir) for part in all_parts]
+
+                # Use a pool of workers to process the files in parallel.
+                with Pool() as pool:
+                    pool.starmap(annotate, task_args)
+
+            except Exception as e:
+                print(f"Error: {e}")
+
+        # Combine all the processed files into one
+        combined_contents = {}
+        json_path = output_json
+
+        # Iterate through json files
+        for file_name in os.listdir(output_dir):
+            if file_name.endswith(".json"):
+                file_path = os.path.join(output_dir, file_name)
+                with open(file_path, "r") as json_file:
+                    try:
+                        content = json.load(json_file)
+                    except:
+                        print(file_name)
+                        continue
+                    combined_contents[file_name[:-5]] = content
+
+        # Write combined content to a json file
+        with open(json_path, "w") as json_file:
+            json.dump(combined_contents, json_file)
+
+        print("All evaluation completed!")
+
+        #remove all file in output_dir
+        for file in os.listdir(output_dir):
+            os.remove(os.path.join(output_dir, file))
+        #remove the output_dir
+        os.rmdir(output_dir)
+    else:
+    #open existing json_file
+        print(f"{output_json} already exists!")
+        with open(output_json, "r") as json_file:
+            combined_contents = json.load(json_file)
+
+    # Calculate average score and accuracy
+    score_sum = 0
+    count = 0
+    yes_count = 0
+    no_count = 0
+    for key, result in tqdm(combined_contents.items()):
+        try:
+            # Computing score
+            count += 1
+            score_match = result[0]['score']
+            score = int(score_match)
+            score_sum += score
+
+            # Computing accuracy
+            pred = result[0]['pred']
+            if "yes" in pred.lower():
+                yes_count += 1
+            elif "no" in pred.lower():
+                no_count += 1
+        except:
+            print(result)
+
+    average_score = score_sum / count
+    accuracy = yes_count / (yes_count + no_count)
+    print('input:', pred_path)
+    print("Yes count:", yes_count)
+    print("No count:", no_count)
+    print("Accuracy:", accuracy)
+    print("Average score:", average_score)
+
+    result = {'input': pred_path, 'yes_count': yes_count, 'no_count': no_count, 'accuracy': accuracy, 'average_score': average_score}
+    
+    dump(result, score_result_file)
 
 def main():
     """

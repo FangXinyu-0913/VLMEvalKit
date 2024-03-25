@@ -9,7 +9,8 @@ def build_judge(version, **kwargs):
         'gpt-4-0613': 'gpt-4-0613',
         'gpt-4-0314': 'gpt-4-0314',
         'chatgpt-1106': 'gpt-3.5-turbo-1106',
-        'chatgpt-0613': 'gpt-3.5-turbo-0613'
+        'chatgpt-0613': 'gpt-3.5-turbo-0613',
+        'gpt-3.5-turbo': 'gpt-3.5-turbo',
     }
     model_version = model_map[version]
     if INTERNAL:

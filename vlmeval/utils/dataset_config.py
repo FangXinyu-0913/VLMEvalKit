@@ -29,6 +29,8 @@ dataset_URLs = {
     "OCRBench": 'https://opencompass.openxlab.space/utils/VLMEval/OCRBench.tsv',
     "MSRVTT": 'https://opencompass.openxlab.space/utils/VLMEval/MSRVTT.tsv',
     "MSVD": 'https://opencompass.openxlab.space/utils/VLMEval/MSVD.tsv',
+    "ActivityNet": 'https://opencompass.openxlab.space/utils/VLMEval/ActivityNet.tsv',
+    "MSRVTT_MINOR": 'https://opencompass.openxlab.space/utils/VLMEval/MSRVTT_MINOR.tsv'
 }
 
 dataset_md5_dict = {
@@ -60,6 +62,8 @@ dataset_md5_dict = {
     "OCRBench": 'e953d98a987cc6e26ef717b61260b778',
     "MSRVTT":'c52545a80f6ee4d5d1bc1aef720454b3',
     "MSVD":'cb0f6470fdc549797166406bfb8e0dfc',
+    "ActivityNet": '93de1f3384b2b5f1deab97e5f7555e04',
+    "MSRVTT_MINOR": 'a2c4bf5cf8e569b1930623973c7bc8f6'
 }
 
 img_root_map = {k: k for k in dataset_URLs}
@@ -81,7 +85,9 @@ img_root_map.update({
     'DocVQA_VAL': 'DocVQA',
     "OCRBench": 'OCRBench',
     "MSRVTT":'MSRVTT',
-    "MSVD":'MSVD'
+    "MSVD":'MSVD',
+    "ActivityNet": 'ActivityNet',
+    "MSRVTT_MINOR": 'MSRVTT_MINOR',
 })
 
 assert set(dataset_URLs) == set(img_root_map) == set(dataset_md5_dict)
@@ -94,7 +100,7 @@ def DATASET_TYPE(dataset):
         return 'Y/N'
     elif 'coco' in dataset:
         return 'Caption'
-    elif listinstr(['ocrvqa', 'textvqa', 'chartqa', 'mathvista', 'docvqa', 'llavabench', 'mmvet', 'OCRBench', 'MSRVTT', 'MSVD'], dataset):
+    elif listinstr(['ocrvqa', 'textvqa', 'chartqa', 'mathvista', 'docvqa', 'llavabench', 'mmvet', 'OCRBench', 'MSRVTT', 'MSVD', 'ActivityNet','MSRVTT_MINOR'], dataset):
         return 'VQA'
     else:
         return 'QA'

@@ -49,7 +49,8 @@ def prepare_inputs_labels_for_multimodal_VIDEO(
         attention_mask: Optional[torch.Tensor] = None,
         past_key_values: Optional[List[torch.FloatTensor]] = None,
         labels: Optional[torch.LongTensor] = None,
-        pixel_values: Optional[torch.FloatTensor] = None):
+        pixel_values: Optional[torch.FloatTensor] = None,
+        num_frames: Optional[int] = 10):
     if pixel_values is None:
         return {
             'input_ids': input_ids,
@@ -139,8 +140,8 @@ def prepare_inputs_labels_for_multimodal_VIDEO(
                 cur_new_inputs_embeds.append(cur_inputs_embeds_no_im[i])
                 cur_new_labels.append(cur_labels_noim[i])
                 if i < num_videos:
-                    cur_pixel_values = pixel_values[cur_image_idx: cur_image_idx + 10]
-                    cur_image_idx += 10
+                    cur_pixel_values = pixel_values[cur_image_idx: cur_image_idx + num_frames]
+                    cur_image_idx += num_frames
                     for item in cur_pixel_values:
                         #VIDEO Squeeze to IMAGE
                         cur_new_inputs_embeds.append(item) #check here
@@ -257,7 +258,7 @@ def prepare_inputs_labels_for_multimodal_VIDEO(
         'labels': new_labels
     }
 
-def get_video_transform(video_decode_backend, num_frames):
+def get_video_transform(video_decode_backend, num_frames, image_size=224):
 
     if video_decode_backend == 'pytorchvideo':
         transform = ApplyTransformToKey(
@@ -267,8 +268,8 @@ def get_video_transform(video_decode_backend, num_frames):
                     UniformTemporalSubsample(num_frames),
                     Lambda(lambda x: x / 255.0),
                     NormalizeVideo(mean=OPENAI_DATASET_MEAN, std=OPENAI_DATASET_STD),
-                    ShortSideScale(size=224),
-                    CenterCropVideo(224),
+                    ShortSideScale(size=image_size),
+                    CenterCropVideo(image_size),
                     RandomHorizontalFlipVideo(p=0.5),
                 ]
             ),
@@ -281,8 +282,8 @@ def get_video_transform(video_decode_backend, num_frames):
                 # UniformTemporalSubsample(num_frames),
                 Lambda(lambda x: x / 255.0),
                 NormalizeVideo(mean=OPENAI_DATASET_MEAN, std=OPENAI_DATASET_STD),
-                ShortSideScale(size=336),
-                CenterCropVideo(336),
+                ShortSideScale(size=image_size),
+                CenterCropVideo(image_size),
                 RandomHorizontalFlipVideo(p=0.5),
             ]
         )
@@ -293,8 +294,8 @@ def get_video_transform(video_decode_backend, num_frames):
                 # UniformTemporalSubsample(num_frames),
                 Lambda(lambda x: x / 255.0),
                 NormalizeVideo(mean=OPENAI_DATASET_MEAN, std=OPENAI_DATASET_STD),
-                ShortSideScale(size=224),
-                CenterCropVideo(224),
+                ShortSideScale(size=image_size),
+                CenterCropVideo(image_size),
                 RandomHorizontalFlipVideo(p=0.5),
             ]
         )
@@ -355,6 +356,8 @@ class LLaVA_XTuner_VIDEO(CustomPrompt):
 
     def __init__(self,
                  llava_path,
+                 num_frames=10,
+                 image_size=336,
                  llm_path=None,
                  visual_encoder_path='openai/clip-vit-large-patch14-336',
                  visual_select_layer=-2,
@@ -405,6 +408,7 @@ class LLaVA_XTuner_VIDEO(CustomPrompt):
         else:
             assert visual_encoder_path is not None, (
                 'Please specify the `visual_encoder_path`!')
+        # print(visual_encoder_path)
         visual_encoder = CLIPVisionModel.from_pretrained(
             visual_encoder_path, torch_dtype=torch_dtype, device_map='cpu')
         image_processor = CLIPImageProcessor.from_pretrained(
@@ -445,6 +449,8 @@ class LLaVA_XTuner_VIDEO(CustomPrompt):
         self.image_processor = image_processor
         self.projector = projector.cuda()
         self.visual_select_layer = visual_select_layer
+        self.num_frames = num_frames
+        self.image_size = image_size
         if prompt_template is not None:
             self.prompt_template = PROMPT_TEMPLATE[prompt_template]
             stop_words += self.prompt_template.get('STOP_WORDS', [])
@@ -509,12 +515,23 @@ class LLaVA_XTuner_VIDEO(CustomPrompt):
         from xtuner.dataset.utils import expand2square
         from xtuner.model.utils import prepare_inputs_labels_for_multimodal
         # from xtuner.utils import DEFAULT_IMAGE_TOKEN, IMAGE_TOKEN_INDEX
-        video_decode_backend = 'decord'
-        num_frames = 10 #TODO
-        video = load_and_transform_video(video_path, get_video_transform(video_decode_backend=video_decode_backend,num_frames=num_frames),
-                                            video_decode_backend=video_decode_backend,
-                                            num_frames=num_frames)
+        try:
+            video_decode_backend = 'decord'
+            video = load_and_transform_video(video_path, get_video_transform(video_decode_backend=video_decode_backend,num_frames=self.num_frames,image_size=self.image_size),
+                                                video_decode_backend=video_decode_backend,
+                                                num_frames=self.num_frames)
+        except Exception as e:
+            # print(e)
+            # try:
+            #     video_decode_backend = 'pytorchvideo'
+            #     video = load_and_transform_video(video_path, get_video_transform(video_decode_backend=video_decode_backend,num_frames=self.num_frames,image_size=self.image_size),
+            #                                         video_decode_backend=video_decode_backend,
+            #                                         num_frames=self.num_frames)
+            # except Exception as e:
+            print(f'Error: {e}, load video failed!')
+            return f'Error: {e}, load video failed!'
         video = video.permute(1,0,2,3).cuda()
+        # print(video.shape, self.visual_encoder)
         visual_outputs = self.visual_encoder(video, output_hidden_states=True)
         pixel_values = self.projector(
             visual_outputs.hidden_states[self.visual_select_layer][:, 1:])
@@ -539,7 +556,7 @@ class LLaVA_XTuner_VIDEO(CustomPrompt):
                 ids.append(VIDEO_TOKEN_INDEX)
         ids = torch.tensor(ids).cuda().unsqueeze(0)
         mm_inputs = prepare_inputs_labels_for_multimodal_VIDEO(
-            llm=self.llm, input_ids=ids, pixel_values=pixel_values, instance_list=['video'])
+            llm=self.llm, input_ids=ids, pixel_values=pixel_values, instance_list=['video'], num_frames = self.num_frames)
 
         gen_config = self.build_gen_config(dataset)
         generate_output = self.llm.generate(
