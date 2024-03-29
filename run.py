@@ -96,10 +96,10 @@ def main():
                 elif listinstr(['LLaVABench'], dataset_name):
                     LLaVABench_eval(result_file, model='gpt-4-turbo', nproc=args.nproc, verbose=args.verbose)
                 elif listinstr(['MSRVTT', 'MSVD', 'ActivityNet', 'MSRVTT_MINOR'], dataset_name):
-                    output_dir = f'{pred_root}/eval_{dataset_name}'
-                    output_json = f'{output_dir}/eval_results_{model_name}_{dataset_name}.json'
-                    score_result_file = f'{output_dir}/eval_scores_{model_name}_{dataset_name}.xlsx'
-                    Video_eval(result_file, dataset_name, output_dir, output_json, score_result_file, model='gpt-3.5-turbo-0125', nproc=args.nproc, verbose=args.verbose)
+                    output_dir = f'{pred_root}/eval_{dataset_name}/'
+                    output_json = f'{pred_root}/eval_results_{model_name}_{dataset_name}.json'
+                    score_result_file = f'{pred_root}/eval_scores_{model_name}_{dataset_name}.json'
+                    Video_eval(result_file, output_dir, output_json, score_result_file, model='gpt-3.5-turbo-0125', nproc=args.nproc, verbose=args.verbose)
                 else:
                     logger.error(f'Dataset {dataset_name} is not handled by evaluator, will be skipped. ')
             

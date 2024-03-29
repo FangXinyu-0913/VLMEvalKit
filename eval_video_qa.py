@@ -29,8 +29,11 @@ def annotate(prediction_set, caption_files, output_dir, args):
     openai.api_key = args.api_key
     if args.api_base is not None:
         openai.api_base = args.api_base
+        
     for file in caption_files:
-        key = file[:-5] # Strip file extension
+        # print(f"Processing file: {file}")
+        # key = file
+        key = int(file[:-5]) # Strip file extension
         qa_set = prediction_set[key]
         question = qa_set['q']
         answer = qa_set['a']
@@ -87,9 +90,15 @@ def main():
     # Parse arguments.
     args = parse_args()
     print(args.pred_path)
-
-    file = open(args.pred_path)
-    new_pred_contents = [eval(i.strip()) for i in file.readlines()]
+    if os.path.splitext(args.pred_path)[1]=='.json':
+        new_pred_contents = json.load(open(args.pred_path)) 
+        for index, content in enumerate(new_pred_contents):
+            content['video_id'] = content['id']
+            content['id'] = index
+        #if os.path.splitext(video_data_path)[1]=='.json' else [json.loads(line) for line in open(video_data_path)]
+    elif os.path.splitext(args.pred_path)[1]=='.jsonl':          
+        file = open(args.pred_path)
+        new_pred_contents = [eval(i.strip()) for i in file.readlines()]
 
     '''
     # Dictionary to store the count of occurrences for each video_id
@@ -132,32 +141,32 @@ def main():
 
     # While loop to ensure that all captions are processed.
     while True:
-        try:
+        # try:
             # Files that have not been processed yet.
-            completed_files = os.listdir(output_dir)
-            print(f"completed_files: {len(completed_files)}")
+        completed_files = os.listdir(output_dir)
+        print(f"completed_files: {len(completed_files)}")
 
-            # Files that have not been processed yet.
-            incomplete_files = [f for f in caption_files if f not in completed_files]
-            print(f"incomplete_files: {len(incomplete_files)}")
+        # Files that have not been processed yet.
+        incomplete_files = [f for f in caption_files if f not in completed_files]
+        print(f"incomplete_files: {len(incomplete_files)}")
 
-            # Break the loop when there are no incomplete files
-            if len(incomplete_files) == 0:
-                break
-            if len(incomplete_files) <= num_tasks:
-                num_tasks = 1
+        # Break the loop when there are no incomplete files
+        if len(incomplete_files) == 0:
+            break
+        if len(incomplete_files) <= num_tasks:
+            num_tasks = 1
 
-            # Split tasks into parts.
-            part_len = len(incomplete_files) // num_tasks
-            all_parts = [incomplete_files[i:i + part_len] for i in range(0, len(incomplete_files), part_len)]
-            task_args = [(prediction_set, part, args.output_dir, args) for part in all_parts]
+        # Split tasks into parts.
+        part_len = len(incomplete_files) // num_tasks
+        all_parts = [incomplete_files[i:i + part_len] for i in range(0, len(incomplete_files), part_len)]
+        task_args = [(prediction_set, part, args.output_dir, args) for part in all_parts]
 
-            # Use a pool of workers to process the files in parallel.
-            with Pool() as pool:
-                pool.starmap(annotate, task_args)
+        # Use a pool of workers to process the files in parallel.
+        with Pool() as pool:
+            pool.starmap(annotate, task_args)
 
-        except Exception as e:
-            print(f"Error: {e}")
+        # except Exception as e:
+        #     print(f"Error: {e}")
 
     # Combine all the processed files into one
     combined_contents = {}

@@ -166,3 +166,6 @@ llava-internlm2-7b-chat-video-0302/*
 llava-internlm2-7b-chat-video/*
 *.pkl
 *.xlsx
+*.json
+*.csv
+

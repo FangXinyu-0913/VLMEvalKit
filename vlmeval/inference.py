@@ -198,7 +198,6 @@ def infer_data_job(model, work_dir, model_name, dataset_name, verbose=False, api
             except:
                 data.pop('video_path')
 
-            
             dump(data, result_file)             
             for i in range(world_size):
                 os.remove(tmpl.format(i))

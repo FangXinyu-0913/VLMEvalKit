@@ -9,14 +9,16 @@ from multiprocessing.pool import Pool
 from tqdm import tqdm
 import time
 from vlmeval.smp import *
+from .misc import build_judge
+from vlmeval.utils import track_progress_rich
 
-api_key="sk-UTzInM2T6ss8UML2E8874740Ae8e4874Ac416d8138379675"
-os.environ['OPENAI_API_BASE']="https://api1.zhtec.xyz/v1"
+# api_key="sk-UTzInM2T6ss8UML2E8874740Ae8e4874Ac416d8138379675"
+os.environ['OPENAI_API_KEY'] = "sk-UTzInM2T6ss8UML2E8874740Ae8e4874Ac416d8138379675"
 
-client = OpenAI(
-    api_key=api_key,
-    # api_base=api_base
-)
+# client = OpenAI(
+#     api_key=api_key,
+#     # api_base=api_base
+# )
 def parse_args():
     parser = argparse.ArgumentParser(description="question-answer-generation-using-gpt-3")
     parser.add_argument("--pred_path", default=r'', help="The path to file containing prediction.")
@@ -27,6 +29,36 @@ def parse_args():
     parser.add_argument("--num_tasks", default=1, type=int, help="Number of splits.")
     args = parser.parse_args()
     return args
+
+
+
+def VIDEO_eval(model, key, question, answer, pred, output_dir):
+    prompt = f"""
+    Please evaluate the following video-based question-answer pair:\n
+    Question: {question}
+    Correct Answer: {answer} 
+    Predicted Answer: {pred}\n 
+    Provide your evaluation only as a yes/no and score where the score is an integer value between 0 and 5, with 5 indicating the highest meaningful match. 
+    Please generate the response in the form of a Python dictionary string with keys 'pred' and 'score', where value of 'pred' is  a string of 'yes' or 'no' and value of 'score' is in INTEGER, not STRING. 
+    DO NOT PROVIDE ANY OTHER OUTPUT TEXT OR EXPLANATION. Only provide the Python dictionary string. 
+    For example, your response should look like this: {{'pred': 'yes', 'score': 4.8}}."""
+    # print(prompt)
+    retry = 5
+    # logger = get_logger('Evaluation')
+    for i in range(retry):
+        try:
+            response_message = model.generate(prompt)
+            response_dict = ast.literal_eval(response_message)
+            result_qa_pair = [response_dict, {'q': question, 'a': answer, 'pred': pred}]
+            with open(f"{output_dir}/{key}.json", "w") as f:
+                json.dump(result_qa_pair, f)
+
+            break
+        except Exception as e:
+            pass
+
+    return result_qa_pair
+
 
 
 def annotate(prediction_set, caption_files, output_dir):
@@ -85,7 +117,7 @@ def annotate(prediction_set, caption_files, output_dir):
             print(f"Error processing file '{key}': {e}")
             time.sleep(10)
 
-def Video_eval(pred_path, output_dir, output_json, dataset_name, score_result_file, model, nproc, verbose):
+def Video_eval(pred_path, output_dir, output_json, score_result_file, model, nproc, verbose):
     """
     Main function to control the flow of the program.
     """
@@ -93,9 +125,9 @@ def Video_eval(pred_path, output_dir, output_json, dataset_name, score_result_fi
         data = load(pred_path)
         data['prediction'] = [str(x) for x in data['prediction']]
         data['answer'] = [str(x) for x in data['answer']]
-        data['id'] = [str(x) for x in data['prediction']]
+        data['id'] = [str(x) for x in data['id']]
         # data['index'] = [str(x) for x in data['answer']]
-        data['question'] = [str(x) for x in data['answer']]
+        data['question'] = [str(x) for x in data['question']]
         new_pred_contents = []
         for id, q, a, idx, pred in zip(data['id'], data['question'], data['answer'], data['index'], data['prediction']):
             new_pred_contents.append({'id': id, 'question': q, 'answer': a, 'index': idx, 'pred': pred})
@@ -119,35 +151,41 @@ def Video_eval(pred_path, output_dir, output_json, dataset_name, score_result_fi
             prediction_set[id] = qa_set
 
         num_tasks = verbose
-
+        model = build_judge(model, api_base='XIAOHAI', verbose=verbose, retry=2)
         # While loop to ensure that all captions are processed.
         while True:
-            try:
-                # Files that have not been processed yet.
-                completed_files = os.listdir(output_dir)
-                print(f"completed_files: {len(completed_files)}")
+            # try:
+                
+            # Files that have not been processed yet.
+            completed_files = os.listdir(output_dir)
+            print(f"completed_files: {len(completed_files)}")
 
-                # Files that have not been processed yet.
-                incomplete_files = [f for f in caption_files if f not in completed_files]
-                print(f"incomplete_files: {len(incomplete_files)}")
+            # Files that have not been processed yet.
+            incomplete_files = [f for f in caption_files if f not in completed_files]
+            print(f"incomplete_files: {len(incomplete_files)}")
 
-                # Break the loop when there are no incomplete files
-                if len(incomplete_files) == 0:
-                    break
-                if len(incomplete_files) <= num_tasks:
-                    num_tasks = 1
+            # Break the loop when there are no incomplete files
+            if len(incomplete_files) == 0:
+                break
+            if len(incomplete_files) <= num_tasks:
+                num_tasks = 1
 
-                # Split tasks into parts.
-                part_len = len(incomplete_files) // num_tasks
-                all_parts = [incomplete_files[i:i + part_len] for i in range(0, len(incomplete_files), part_len)]
-                task_args = [(prediction_set, part, output_dir) for part in all_parts]
 
-                # Use a pool of workers to process the files in parallel.
-                with Pool() as pool:
-                    pool.starmap(annotate, task_args)
+            tups = []
+            for file in incomplete_files:
+                key = file[:-5] # Strip file extension
+                qa_set = prediction_set[key]
+                question = qa_set['q']
+                answer = qa_set['a']
+                pred = qa_set['pred']
+                tups.append((model, key, question, answer, pred, output_dir))
+                
 
-            except Exception as e:
-                print(f"Error: {e}")
+            track_progress_rich(VIDEO_eval, tups, nproc=nproc, chunksize=nproc) 
+
+
+            # except Exception as e:
+            #     print(f"Error: {e}")
 
         # Combine all the processed files into one
         combined_contents = {}
@@ -169,7 +207,7 @@ def Video_eval(pred_path, output_dir, output_json, dataset_name, score_result_fi
         with open(json_path, "w") as json_file:
             json.dump(combined_contents, json_file)
 
-        print("All evaluation completed!")
+        print(f"All evaluation completed! result saved in {json_path}")
 
         #remove all file in output_dir
         for file in os.listdir(output_dir):
@@ -214,7 +252,10 @@ def Video_eval(pred_path, output_dir, output_json, dataset_name, score_result_fi
 
     result = {'input': pred_path, 'yes_count': yes_count, 'no_count': no_count, 'accuracy': accuracy, 'average_score': average_score}
     
-    dump(result, score_result_file)
+    with open(score_result_file, "w") as f:
+        json.dump(result, f)
+
+    print(f"score Result saved to {score_result_file}")
 
 def main():
     """
