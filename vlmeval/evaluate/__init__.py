@@ -8,3 +8,4 @@ from .llavabench import LLaVABench_eval
 from .misc import build_judge
 from .OCRBench import OCRBench_eval
 from .video_eval import Video_eval
+from .mmbench_video import MMBench_VIDEO_eval

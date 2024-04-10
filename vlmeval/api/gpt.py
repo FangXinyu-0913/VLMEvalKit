@@ -4,7 +4,8 @@ from .base import BaseAPI
 
 APIBASES = {
     'OFFICIAL': "https://api.openai.com/v1/chat/completions",
-    'XIAOHAI': "https://api1.zhtec.xyz/v1/chat/completions"
+    'XIAOHAI': "https://api1.zhtec.xyz/v1/chat/completions",
+    'JIYUN': "https://jyapi.top/v1/chat/completions", #https://jyapi.top/chat
 }
 
 

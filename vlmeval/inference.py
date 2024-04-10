@@ -106,11 +106,11 @@ def infer_data(model_name, work_dir, dataset_name, out_file, verbose=False, api_
         idx = data.iloc[i]['index']
         if idx in res:
             continue
-
-        if hasattr(model, 'use_custom_prompt') and model.use_custom_prompt(dataset_name):
-            struct = model.build_prompt(data.iloc[i], dataset=dataset_name)
-        elif 'video_path' in data.iloc[i].keys():
+        
+        if 'video_path' in data.iloc[i].keys():
             struct = 'empty'
+        elif hasattr(model, 'use_custom_prompt') and model.use_custom_prompt(dataset_name):
+            struct = model.build_prompt(data.iloc[i], dataset=dataset_name)
         else:
             struct = dataset.build_prompt(data.iloc[i])
 
@@ -192,6 +192,8 @@ def infer_data_job(model, work_dir, model_name, dataset_name, verbose=False, api
 
             data = TSVDataset(dataset_name).data
             assert len(data_all) == len(data)
+            # for x in data['index']:
+
             data['prediction'] = [str(data_all[x]) for x in data['index']]
             try:
                 data.pop('image')

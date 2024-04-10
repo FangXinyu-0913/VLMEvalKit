@@ -148,6 +148,7 @@ def main():
 
         # Files that have not been processed yet.
         incomplete_files = [f for f in caption_files if f not in completed_files]
+        # print(incomplete_files)
         print(f"incomplete_files: {len(incomplete_files)}")
 
         # Break the loop when there are no incomplete files

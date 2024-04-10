@@ -169,3 +169,5 @@ llava-internlm2-7b-chat-video/*
 *.json
 *.csv
 
+*.png
+*.ttf

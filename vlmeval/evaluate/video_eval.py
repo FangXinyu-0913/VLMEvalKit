@@ -12,8 +12,7 @@ from vlmeval.smp import *
 from .misc import build_judge
 from vlmeval.utils import track_progress_rich
 
-# api_key="sk-UTzInM2T6ss8UML2E8874740Ae8e4874Ac416d8138379675"
-os.environ['OPENAI_API_KEY'] = "sk-UTzInM2T6ss8UML2E8874740Ae8e4874Ac416d8138379675"
+
 
 # client = OpenAI(
 #     api_key=api_key,
@@ -52,12 +51,11 @@ def VIDEO_eval(model, key, question, answer, pred, output_dir):
             result_qa_pair = [response_dict, {'q': question, 'a': answer, 'pred': pred}]
             with open(f"{output_dir}/{key}.json", "w") as f:
                 json.dump(result_qa_pair, f)
-
             break
         except Exception as e:
             pass
 
-    return result_qa_pair
+    return [{'pred': 'no', 'score': 0}, {'q': question, 'a': answer, 'pred': pred}]
 
 
 
@@ -151,7 +149,8 @@ def Video_eval(pred_path, output_dir, output_json, score_result_file, model, npr
             prediction_set[id] = qa_set
 
         num_tasks = verbose
-        model = build_judge(model, api_base='XIAOHAI', verbose=verbose, retry=2)
+        model = build_judge(model, verbose=verbose, retry=2)
+        retry_times = 0
         # While loop to ensure that all captions are processed.
         while True:
             # try:
@@ -162,6 +161,7 @@ def Video_eval(pred_path, output_dir, output_json, score_result_file, model, npr
 
             # Files that have not been processed yet.
             incomplete_files = [f for f in caption_files if f not in completed_files]
+            print(incomplete_files)
             print(f"incomplete_files: {len(incomplete_files)}")
 
             # Break the loop when there are no incomplete files
@@ -179,6 +179,19 @@ def Video_eval(pred_path, output_dir, output_json, score_result_file, model, npr
                 answer = qa_set['a']
                 pred = qa_set['pred']
                 tups.append((model, key, question, answer, pred, output_dir))
+
+            retry_times += 1
+            if retry_times > 1:
+                for file in incomplete_files:
+                    key = file[:-5] # Strip file extension
+                    qa_set = prediction_set[key]
+                    question = qa_set['q']
+                    answer = qa_set['a']
+                    pred = qa_set['pred']
+                    result_qa_pair = [{'pred': 'no', 'score': 0}, {'q': question, 'a': answer, 'pred': pred}]
+                    with open(f"{output_dir}/{key}.json", "w") as f:
+                        json.dump(result_qa_pair, f)
+                break
                 
 
             track_progress_rich(VIDEO_eval, tups, nproc=nproc, chunksize=nproc) 
