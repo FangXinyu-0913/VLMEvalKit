@@ -63,7 +63,7 @@ MMV_DIMENSIONS['Reasoning'] = MMV_DIMENSIONS['Logic Reasoning'] + MMV_DIMENSIONS
 
 def build_prompt(item):
     tmpl = "Question: {}\nGroundtruth answer: {}\nCandidate answer: {}\nYour response: "
-    return tmpl.format(item["question"], item["answer"], item["prediction"])
+    return tmpl.format(item["question"], item["answer"], item["prediction"].replace('<|im_end|>',''))
 
 model_map = dict(
     gpt35=partial(OpenAIWrapper, 'gpt-3.5-turbo-0613', verbose=True, retry=16),
@@ -200,6 +200,7 @@ def MMBench_VIDEO_eval(data_file, model, nproc, verbose):
     
     data = read_excel_to_list_of_dicts(data_file)
     # model = model_map[args.model](system_prompt=system_prompt)
+    print(model)
     model = OpenAIWrapper(model, retry=3, api_base='XIAOHAI',system_prompt=system_prompt, verbose=verbose)
 
     # for _, data_file in enumerate(data):

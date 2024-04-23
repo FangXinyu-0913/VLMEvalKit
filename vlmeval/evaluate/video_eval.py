@@ -29,21 +29,81 @@ def parse_args():
     args = parser.parse_args()
     return args
 
+def mvbench_check_ans(pred, gt):
+    flag = False
+    
+    pred_list = pred.lower().split(' ')
+    pred_option, pred_content = pred_list[0], ' '.join(pred_list[1:])
+    gt_list = gt.lower().split(' ')
+    gt_option, gt_content = gt_list[0], ' '.join(gt_list[1:])
+    if gt_content[-1] == '.':
+        gt_content = gt_content[:-1]
+    
+    if pred_option.replace('.', '') in gt_option:
+        flag = True
+    elif gt_option in pred_option:
+        flag = True
+        
+    return flag
+
+def MVBench_eval(eval_file, result_save_path, result_leader_board_path):
+    logger = get_logger('Evaluation')
+    # print(eval_file)
+    data = load(eval_file)
+    correct = 0
+    total = 0
+    res_list = []
+    acc_dict = {}
+    assert 'answer' in data and 'prediction' in data
+    data = [data.iloc[i] for i in range(len(data))]
+    for example in tqdm(data):
+        print(example)
+        task_type = example['split']
+        if task_type not in acc_dict:
+            acc_dict[task_type] = [0, 0] # correct, total        acc_dict[task_type][1] += 1
+        total += 1
+        acc_dict[task_type][1] += 1
+
+        res_list.append({
+            'pred': str(example['prediction']),
+            'gt': str(example['answer'])
+        })
+        if mvbench_check_ans(pred=str(example['prediction']), gt=str(example['answer'])):
+            acc_dict[task_type][0] += 1
+            correct += 1
+        print(f"Part  Acc: {acc_dict[task_type][0] / acc_dict[task_type][1] * 100 :.2f}%")
+        print(f"Total Acc: {correct / total * 100 :.2f}%")
+        print('-' * 30, task_type, '-' * 30)
+
+    with open(result_save_path, "w") as f:
+        json.dump({
+            "acc_dict": acc_dict,
+            "res_list": res_list
+        }, f)
+
+    final_res = dict()
+    correct = 0
+    total = 0
+    print(acc_dict)
+    for k, v in acc_dict.items():
+        final_res[k] = v[0] / v[1] * 100
+        correct += v[0]
+        total += v[1]    
+    final_res['Avg'] = correct / total * 100
+
+    print(final_res)
+
+    with open(result_leader_board_path, "w") as f:
+        json.dump(final_res, f)
 
 
 def VIDEO_eval(model, key, question, answer, pred, output_dir):
-    prompt = f"""
-    Please evaluate the following video-based question-answer pair:\n
-    Question: {question}
-    Correct Answer: {answer} 
-    Predicted Answer: {pred}\n 
-    Provide your evaluation only as a yes/no and score where the score is an integer value between 0 and 5, with 5 indicating the highest meaningful match. 
-    Please generate the response in the form of a Python dictionary string with keys 'pred' and 'score', where value of 'pred' is  a string of 'yes' or 'no' and value of 'score' is in INTEGER, not STRING. 
-    DO NOT PROVIDE ANY OTHER OUTPUT TEXT OR EXPLANATION. Only provide the Python dictionary string. 
-    For example, your response should look like this: {{'pred': 'yes', 'score': 4.8}}."""
-    # print(prompt)
+    prompt = f"Please evaluate the following video-based question-answer pair:\nQuestion: {question}\nCorrect Answer: {answer}\nPredicted Answer: {pred}\n \
+Provide your evaluation only as a yes/no and score where the score is an integer value between 0 and 5, with 5 indicating the highest meaningful match.\n \
+Please generate the response in the form of a Python dictionary string with keys 'pred' and 'score', where value of 'pred' is  a string of 'yes' or 'no' and value of 'score' is in INTEGER, not STRING.\n \
+DO NOT PROVIDE ANY OTHER OUTPUT TEXT OR EXPLANATION. Only provide the Python dictionary string. \n \
+For example, your response should look like this: {{'pred': 'yes', 'score': 4.8}}."
     retry = 5
-    # logger = get_logger('Evaluation')
     for i in range(retry):
         try:
             response_message = model.generate(prompt)
@@ -144,12 +204,12 @@ def Video_eval(pred_path, output_dir, output_json, score_result_file, model, npr
             id = sample['id']
             question = sample['question']
             answer = sample['answer']
-            pred = sample['pred']
+            pred = sample['pred'].replace('<|im_end|>', '')
             qa_set = {"q": question, "a": answer, "pred": pred}
             prediction_set[id] = qa_set
 
         num_tasks = verbose
-        model = build_judge(model, verbose=verbose, retry=2)
+        model = build_judge(model, api_base='XIAOHAI', verbose=verbose, retry=2)
         retry_times = 0
         # While loop to ensure that all captions are processed.
         while True:
@@ -161,7 +221,7 @@ def Video_eval(pred_path, output_dir, output_json, score_result_file, model, npr
 
             # Files that have not been processed yet.
             incomplete_files = [f for f in caption_files if f not in completed_files]
-            print(incomplete_files)
+            # print(incomplete_files)
             print(f"incomplete_files: {len(incomplete_files)}")
 
             # Break the loop when there are no incomplete files
@@ -181,7 +241,7 @@ def Video_eval(pred_path, output_dir, output_json, score_result_file, model, npr
                 tups.append((model, key, question, answer, pred, output_dir))
 
             retry_times += 1
-            if retry_times > 1:
+            if retry_times > 3:
                 for file in incomplete_files:
                     key = file[:-5] # Strip file extension
                     qa_set = prediction_set[key]

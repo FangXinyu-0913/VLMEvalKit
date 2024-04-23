@@ -32,6 +32,8 @@ import random
 
 from transformers import PreTrainedModel
 from typing import List, Optional
+from mmengine.model import BaseModel
+from .chatuniviModel import ChatUniViMetaForCausalLM
 
 OPENAI_DATASET_MEAN = (0.48145466, 0.4578275, 0.40821073)
 OPENAI_DATASET_STD = (0.26862954, 0.26130258, 0.27577711)
@@ -41,222 +43,6 @@ IMAGE_TOKEN_INDEX = -200
 VIDEO_TOKEN_INDEX = -201
 DEFAULT_IMAGE_TOKEN = '<image>'
 DEFAULT_VIDEO_TOKEN = '<video>'
-def prepare_inputs_labels_for_multimodal_VIDEO(
-        llm: PreTrainedModel,
-        instance_list: List[str] = ['image'],
-        input_ids: torch.LongTensor = None,
-        position_ids: Optional[torch.LongTensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        past_key_values: Optional[List[torch.FloatTensor]] = None,
-        labels: Optional[torch.LongTensor] = None,
-        pixel_values: Optional[torch.FloatTensor] = None,
-        num_frames: Optional[int] = 10):
-    if pixel_values is None:
-        return {
-            'input_ids': input_ids,
-            'position_ids': position_ids,
-            'attention_mask': attention_mask,
-            'past_key_values': past_key_values,
-            'inputs_embeds': None,
-            'labels': labels
-        }
-
-    _labels = labels
-    _position_ids = position_ids
-    _attention_mask = attention_mask
-    if attention_mask is None:
-        attention_mask = torch.ones_like(input_ids, dtype=torch.bool)
-    else:
-        attention_mask = attention_mask.bool()
-    if position_ids is None:
-        position_ids = torch.arange(
-            0, input_ids.shape[1], dtype=torch.long, device=input_ids.device)
-    if labels is None:
-        labels = torch.full_like(input_ids, IGNORE_INDEX)
-
-    # remove the padding using attention_mask -- TODO: double check
-    input_ids = [
-        cur_input_ids[cur_attention_mask]
-        for cur_input_ids, cur_attention_mask in zip(input_ids, attention_mask)
-    ]
-    labels = [
-        cur_labels[cur_attention_mask]
-        for cur_labels, cur_attention_mask in zip(labels, attention_mask)
-    ]
-
-    new_inputs_embeds = []
-    new_labels = []
-    cur_image_idx = 0
-    for batch_idx, (cur_input_ids, instance) in enumerate(zip(input_ids,instance_list)):
-        num_images = (cur_input_ids == VIDEO_TOKEN_INDEX).sum()
-        if instance == 'video':
-            num_videos = 1
-            num_images = 0
-        else:
-            num_videos = 0
-        #num_videos = # (cur_input_ids == VIDEO_TOKEN_INDEX).sum() 
-        # print(f'image num {num_images}, video num {num_videos}')
-        if num_images == 0 and num_videos == 0:
-            cur_pixel_values = pixel_values[cur_image_idx]
-            cur_inputs_embeds_1 = llm.get_input_embeddings()(cur_input_ids)
-            cur_inputs_embeds = torch.cat(
-                [cur_inputs_embeds_1, cur_pixel_values[0:0]], dim=0)
-            new_inputs_embeds.append(cur_inputs_embeds)
-            new_labels.append(labels[batch_idx])
-            cur_image_idx += 1
-            continue
-
-        
-        if num_videos > 0:
-            video_token_indices =  [-1] + torch.where(       #[-1, 4, cur_input_ids.shape[0]]
-                cur_input_ids == VIDEO_TOKEN_INDEX)[0].tolist() + [
-                    cur_input_ids.shape[0]
-                ]
-            if len(video_token_indices) == 2:
-                video_token_indices = [-1, 4, cur_input_ids.shape[0]]
-            # print(f'video_token_indices:',video_token_indices)
-            # import ipdb
-            # ipdb.set_trace()
-            cur_input_ids_noim = []
-            cur_labels = labels[batch_idx]
-            cur_labels_noim = []
-            for i in range(len(video_token_indices) - 1):
-                cur_input_ids_noim.append(cur_input_ids[video_token_indices[i] +
-                                                        1:video_token_indices[i +
-                                                                            1]])
-                cur_labels_noim.append(cur_labels[video_token_indices[i] +
-                                                1:video_token_indices[i + 1]])
-            # print(cur_input_ids_noim, cur_labels_noim)
-            split_sizes = [x.shape[0] for x in cur_labels_noim]
-            cur_inputs_embeds = llm.get_input_embeddings()(
-                torch.cat(cur_input_ids_noim))
-            cur_inputs_embeds_no_im = torch.split(
-                cur_inputs_embeds, split_sizes, dim=0)
-            # print(cur_inputs_embeds.shape, cur_inputs_embeds_no_im)
-            cur_new_inputs_embeds = []
-            cur_new_labels = []
-
-            for i in range(num_videos + 1):
-                cur_new_inputs_embeds.append(cur_inputs_embeds_no_im[i])
-                cur_new_labels.append(cur_labels_noim[i])
-                if i < num_videos:
-                    cur_pixel_values = pixel_values[cur_image_idx: cur_image_idx + num_frames]
-                    cur_image_idx += num_frames
-                    for item in cur_pixel_values:
-                        #VIDEO Squeeze to IMAGE
-                        cur_new_inputs_embeds.append(item) #check here
-                        # print(item.shape)
-                        cur_new_labels.append(
-                            torch.full((item.shape[0], ),
-                                    IGNORE_INDEX,
-                                    device=cur_labels.device,
-                                    dtype=cur_labels.dtype))
-        
-        if num_images > 0:
-            # import ipdb
-            # ipdb.set_trace()
-            image_token_indices = [-1] + torch.where(
-                cur_input_ids == IMAGE_TOKEN_INDEX)[0].tolist() + [
-                    cur_input_ids.shape[0]
-                ]
-            # print(f'image token indices: {image_token_indices}, {cur_input_ids.shape[0]}')
-            cur_input_ids_noim = []
-            cur_labels = labels[batch_idx]
-            cur_labels_noim = []
-            for i in range(len(image_token_indices) - 1):
-                cur_input_ids_noim.append(cur_input_ids[image_token_indices[i] +
-                                                        1:image_token_indices[i +
-                                                                            1]])
-                cur_labels_noim.append(cur_labels[image_token_indices[i] +
-                                                1:image_token_indices[i + 1]])
-            split_sizes = [x.shape[0] for x in cur_labels_noim]
-            cur_inputs_embeds = llm.get_input_embeddings()(
-                torch.cat(cur_input_ids_noim))
-            cur_inputs_embeds_no_im = torch.split(
-                cur_inputs_embeds, split_sizes, dim=0)
-            cur_new_inputs_embeds = []
-            cur_new_labels = []
-
-            for i in range(num_images + 1):
-                cur_new_inputs_embeds.append(cur_inputs_embeds_no_im[i])
-                cur_new_labels.append(cur_labels_noim[i])
-                if i < num_images:
-                    cur_pixel_values = pixel_values[cur_image_idx]
-                    cur_image_idx += 1
-                    cur_new_inputs_embeds.append(cur_pixel_values)
-                    cur_new_labels.append(
-                        torch.full((cur_pixel_values.shape[0], ),
-                                IGNORE_INDEX,
-                                device=cur_labels.device,
-                                dtype=cur_labels.dtype))
-
-        cur_new_inputs_embeds = torch.cat(cur_new_inputs_embeds)
-        cur_new_labels = torch.cat(cur_new_labels)
-
-        new_inputs_embeds.append(cur_new_inputs_embeds)
-        new_labels.append(cur_new_labels)
-
-    # Combine them
-    max_len = max(x.shape[0] for x in new_inputs_embeds)
-    batch_size = len(new_inputs_embeds)
-
-    new_inputs_embeds_padded = []
-    new_labels_padded = torch.full((batch_size, max_len),
-                                   IGNORE_INDEX,
-                                   dtype=new_labels[0].dtype,
-                                   device=new_labels[0].device)
-    attention_mask = torch.zeros((batch_size, max_len),
-                                 dtype=attention_mask.dtype,
-                                 device=attention_mask.device)
-    position_ids = torch.zeros((batch_size, max_len),
-                               dtype=position_ids.dtype,
-                               device=position_ids.device)
-
-    for i, (cur_new_embed,
-            cur_new_labels) in enumerate(zip(new_inputs_embeds, new_labels)):
-        cur_len = cur_new_embed.shape[0]
-        new_inputs_embeds_padded.append(
-            torch.cat((cur_new_embed,
-                       torch.zeros((max_len - cur_len, cur_new_embed.shape[1]),
-                                   dtype=cur_new_embed.dtype,
-                                   device=cur_new_embed.device)),
-                      dim=0))
-        if cur_len > 0:
-            new_labels_padded[i, :cur_len] = cur_new_labels
-            attention_mask[i, :cur_len] = True
-            position_ids[i, :cur_len] = torch.arange(
-                0,
-                cur_len,
-                dtype=position_ids.dtype,
-                device=position_ids.device)
-
-    new_inputs_embeds = torch.stack(new_inputs_embeds_padded, dim=0)
-    # print(new_inputs_embeds.shape)
-
-    if _labels is None:
-        new_labels = None
-    else:
-        new_labels = new_labels_padded
-
-    if _attention_mask is None:
-        attention_mask = None
-    else:
-        attention_mask = attention_mask.to(dtype=_attention_mask.dtype)
-
-    if _position_ids is None:
-        position_ids = None
-    # try:
-    #     print(new_inputs_embeds.shape, new_labels.shape)
-    # except:
-    #     print('get failure')
-    return {
-        'input_ids': None,
-        'position_ids': position_ids,
-        'attention_mask': attention_mask,
-        'past_key_values': past_key_values,
-        'inputs_embeds': new_inputs_embeds,
-        'labels': new_labels
-    }
 
 def get_video_transform(video_decode_backend, num_frames, image_size=224):
 
@@ -270,7 +56,7 @@ def get_video_transform(video_decode_backend, num_frames, image_size=224):
                     NormalizeVideo(mean=OPENAI_DATASET_MEAN, std=OPENAI_DATASET_STD),
                     ShortSideScale(size=image_size),
                     CenterCropVideo(image_size),
-                    RandomHorizontalFlipVideo(p=0.5),
+                    # RandomHorizontalFlipVideo(p=0.5),
                 ]
             ),
         )
@@ -284,7 +70,7 @@ def get_video_transform(video_decode_backend, num_frames, image_size=224):
                 NormalizeVideo(mean=OPENAI_DATASET_MEAN, std=OPENAI_DATASET_STD),
                 ShortSideScale(size=image_size),
                 CenterCropVideo(image_size),
-                RandomHorizontalFlipVideo(p=0.5),
+                # RandomHorizontalFlipVideo(p=0.5),
             ]
         )
 
@@ -296,7 +82,7 @@ def get_video_transform(video_decode_backend, num_frames, image_size=224):
                 NormalizeVideo(mean=OPENAI_DATASET_MEAN, std=OPENAI_DATASET_STD),
                 ShortSideScale(size=image_size),
                 CenterCropVideo(image_size),
-                RandomHorizontalFlipVideo(p=0.5),
+                # RandomHorizontalFlipVideo(p=0.5),
             ]
         )
     else:
@@ -363,7 +149,9 @@ class LLaVA_XTuner_VIDEO(CustomPrompt):
                  visual_select_layer=-2,
                  prompt_template=None,
                  stop_words=[],
-                 torch_dtype=torch.float16):
+                 torch_dtype=torch.float16,
+                 compress_video_tokens_with_chatunivi=False,
+                 mode='pretrain'):
         try:
             from peft import PeftModel
             from xtuner.utils import PROMPT_TEMPLATE, StopWordStoppingCriteria
@@ -462,6 +250,44 @@ class LLaVA_XTuner_VIDEO(CustomPrompt):
             self.stop_criteria.append(
                 StopWordStoppingCriteria(self.tokenizer, word))
 
+        self.model_args = {
+            'pretrain': {
+                
+                "use_cluster": True,
+                "freeze": False,
+                "vision_tune": False,
+
+                "spatial_cluster_rate0": 64,  # 0.25
+                "spatial_cluster_rate1": 32,  # 0.5
+                "spatial_cluster_rate2": 16,  # 0.5
+
+                "temporal_cluster_rate": 1/16,
+            },
+
+            'finetune':{
+
+                "use_cluster": True,
+                "freeze": False,
+                "mm_tune": True,
+                "vision_tune": False,
+
+                "spatial_cluster_rate0": 64,  # 0.25
+                "spatial_cluster_rate1": 32,  # 0.5
+                "spatial_cluster_rate2": 16,  # 0.5
+
+                "temporal_cluster_rate": 1/16,
+
+            }
+        }
+
+        self.config = {'mm_hidden_size': 1024}
+        self.enable_compress_tokens = compress_video_tokens_with_chatunivi
+        if compress_video_tokens_with_chatunivi:
+            self.chat_univi_model = ChatUniViMetaForCausalLM(model_args=self.model_args[mode], config=self.config)
+        else:    
+            self.chat_univi_model = None
+
+
     def build_gen_config(self, dataset):
         gen_kwargs = dict(max_new_tokens=1024,
                           do_sample=False,
@@ -521,20 +347,54 @@ class LLaVA_XTuner_VIDEO(CustomPrompt):
                                                 video_decode_backend=video_decode_backend,
                                                 num_frames=self.num_frames)
         except Exception as e:
-            # print(e)
-            # try:
-            #     video_decode_backend = 'pytorchvideo'
-            #     video = load_and_transform_video(video_path, get_video_transform(video_decode_backend=video_decode_backend,num_frames=self.num_frames,image_size=self.image_size),
-            #                                         video_decode_backend=video_decode_backend,
-            #                                         num_frames=self.num_frames)
-            # except Exception as e:
-            print(f'Error: {e}, load video failed!')
-            return f'Error: {e}, load video failed!'
+            try:
+                import cv2
+                import numpy as np
+                import imageio
+                if os.path.isdir(video_path):
+                    fname, fename = os.path.split(video_path)
+                    target_file_name = os.path.join(fname, f'{fename}.mp4')
+                    filelist = os.listdir(video_path)
+                    fps = 3
+                    with imageio.get_writer(target_file_name, fps=fps) as video:
+                        for file_name in sorted(filelist):
+                            if file_name.endswith('.jpg'):
+                                frame = np.array(Image.open(os.path.join(video_path,file_name)).convert('RGB'))
+                                # frame = cv2.imread(os.path.join(img_root,file_name)).convert('RGB')
+                                video.append_data(frame)
+
+
+                else:
+                    from moviepy.editor import VideoFileClip
+                    print(video_path)
+                    # fname, fename = os.path.split(video_path)
+                    fname = os.path.dirname(video_path)
+                    fename = os.path.basename(video_path)
+                    fename_name = fename.split('.')[0]
+                    target_file_name = os.path.join(fname, f'{fename_name}.mp4')
+                    video = VideoFileClip(video_path)
+                    video.write_videofile(target_file_name)
+
+                video_decode_backend = 'decord'
+                video = load_and_transform_video(target_file_name, get_video_transform(video_decode_backend=video_decode_backend,num_frames=self.num_frames,image_size=self.image_size),
+                                            video_decode_backend=video_decode_backend,
+                                            num_frames=self.num_frames)
+
+                os.remove(target_file_name)
+
+
+            except Exception as ne:
+                print(f'Error: {ne}, {video_path}, load video failed!')
+                raise
         video = video.permute(1,0,2,3).cuda()
         # print(video.shape, self.visual_encoder)
         visual_outputs = self.visual_encoder(video, output_hidden_states=True)
-        pixel_values = self.projector(
-            visual_outputs.hidden_states[self.visual_select_layer][:, 1:])
+        
+        if self.enable_compress_tokens:
+            pixel_values = visual_outputs.hidden_states[self.visual_select_layer][:, 1:]
+        else:
+            pixel_values = self.projector(
+                visual_outputs.hidden_states[self.visual_select_layer][:, 1:])
 
         inputs = DEFAULT_VIDEO_TOKEN + '\n' + prompt
 
@@ -555,8 +415,16 @@ class LLaVA_XTuner_VIDEO(CustomPrompt):
             if idx != len(chunk_encode) - 1:
                 ids.append(VIDEO_TOKEN_INDEX)
         ids = torch.tensor(ids).cuda().unsqueeze(0)
-        mm_inputs = prepare_inputs_labels_for_multimodal_VIDEO(
-            llm=self.llm, input_ids=ids, pixel_values=pixel_values, instance_list=['video'], num_frames = self.num_frames)
+        if self.enable_compress_tokens:
+            mm_inputs = self.prepare_inputs_labels_for_multimodal_VIDEO(
+                llm=self.llm, input_ids=ids, pixel_values=pixel_values, instance_list=['video'], num_frames = self.num_frames, chatuniviModel= self.chat_univi_model)
+        else:
+            try:
+                mm_inputs = self.prepare_inputs_labels_for_multimodal_VIDEO(
+                    llm=self.llm, input_ids=ids, pixel_values=pixel_values, instance_list=['video'], num_frames = self.num_frames)
+            except Exception as e:
+                # print(video_path, prompt, ids, e)
+                raise
 
         gen_config = self.build_gen_config(dataset)
         generate_output = self.llm.generate(
@@ -568,6 +436,294 @@ class LLaVA_XTuner_VIDEO(CustomPrompt):
         predict = self.tokenizer.decode(generate_output[0],
                                         skip_special_tokens=True).strip()
         return predict
+    
+
+    def prepare_inputs_labels_for_multimodal_VIDEO(
+        self,
+        llm: PreTrainedModel,
+        instance_list: List[str] = ['image'],
+        input_ids: torch.LongTensor = None,
+        position_ids: Optional[torch.LongTensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        past_key_values: Optional[List[torch.FloatTensor]] = None,
+        labels: Optional[torch.LongTensor] = None,
+        pixel_values: Optional[torch.FloatTensor] = None,
+        num_frames: Optional[int] = 10,
+        chatuniviModel: BaseModel = None):
+        
+        if pixel_values is None:
+            return {
+                'input_ids': input_ids,
+                'position_ids': position_ids,
+                'attention_mask': attention_mask,
+                'past_key_values': past_key_values,
+                'inputs_embeds': None,
+                'labels': labels
+            }
+
+        _labels = labels
+        _position_ids = position_ids
+        _attention_mask = attention_mask
+        if attention_mask is None:
+            attention_mask = torch.ones_like(input_ids, dtype=torch.bool)
+        else:
+            attention_mask = attention_mask.bool()
+        if position_ids is None:
+            position_ids = torch.arange(
+                0, input_ids.shape[1], dtype=torch.long, device=input_ids.device)
+        if labels is None:
+            labels = torch.full_like(input_ids, IGNORE_INDEX)
+
+        # remove the padding using attention_mask -- TODO: double check
+        input_ids = [
+            cur_input_ids[cur_attention_mask]
+            for cur_input_ids, cur_attention_mask in zip(input_ids, attention_mask)
+        ]
+        labels = [
+            cur_labels[cur_attention_mask]
+            for cur_labels, cur_attention_mask in zip(labels, attention_mask)
+        ]
+
+        new_inputs_embeds = []
+        new_labels = []
+        cur_image_idx = 0
+
+        split_sizes_overall = []
+        vision_feature_overall = []
+        overall_feat_after_proj_split_list = []
+        if chatuniviModel is not None:
+            for batch_idx, (cur_input_ids, instance) in enumerate(zip(input_ids, instance_list)):
+                num_images = (cur_input_ids == IMAGE_TOKEN_INDEX).sum()
+                num_videos = (cur_input_ids == VIDEO_TOKEN_INDEX).sum()
+                split_sizes_perinstance = []
+                vision_feat_perinstance = []
+                if num_videos > 0:
+                    for i in range(num_videos + 1):
+                        if i < num_videos:
+                            cur_pixel_values = pixel_values[cur_image_idx: cur_image_idx + num_frames]
+                            cur_image_idx += num_frames
+                            cur_image_features = chatuniviModel(cur_pixel_values, input_type="video").squeeze(0)
+                            # cur_image_features = cur_image_features.to(cur_inputs_embeds.dtype)
+                            # cur_image_features = cur_image_features.to(cur_inputs_embeds.device)
+                            split_sizes_perinstance.append(cur_image_features.shape[0])
+                            vision_feat_perinstance.append(cur_image_features)
+
+                if num_images > 0:
+                    for i in range(num_images + 1):
+                        if i < num_images:
+                            cur_pixel_values = pixel_values[cur_image_idx]
+                            cur_image_idx += 1
+                            cur_image_features = chatuniviModel(cur_pixel_values.unsqueeze(0), input_type="image").squeeze(0)
+                            # cur_image_features = cur_image_features.to(cur_inputs_embeds.dtype)
+                            # cur_image_features = cur_image_features.to(cur_inputs_embeds.device)
+                            split_sizes_perinstance.append(cur_image_features.shape[0])
+                            vision_feat_perinstance.append(cur_image_features)
+                            # print('cur_image_features.shape:',cur_image_features.shape)
+
+                if num_images == 0 and num_videos == 0:
+                    cur_pixel_values = pixel_values[cur_image_idx]
+                    cur_image_idx += 1
+                    # print(f'empty image:{num_images} video:{num_videos} instance {instance} cur_input_ids {cur_input_ids} pixel')
+                    ZERO_VISION_FEAT = torch.zeros(96, 1024).to(self.visual_encoder.device).to(self.visual_encoder.dtype)
+                    split_sizes_perinstance.append(ZERO_VISION_FEAT.shape[0])
+                    vision_feat_perinstance.append(ZERO_VISION_FEAT)
+                               
+                split_sizes_overall.append(split_sizes_perinstance)
+                vision_feature_overall.append(torch.cat(vision_feat_perinstance))
+
+            overall_feat_before_proj = torch.cat(vision_feature_overall)
+            overall_feat_after_proj = self.projector(overall_feat_before_proj)
+            overall_feat_after_proj_split = torch.split(overall_feat_after_proj, [lis for lists in split_sizes_overall for lis in lists], dim=0)
+            i = 0
+            
+            for split_sizes_perinstance in split_sizes_overall:
+                overall_feat_after_proj_split_list.append(overall_feat_after_proj_split[i:i+len(split_sizes_perinstance)])
+                i = i + len(split_sizes_perinstance)
+
+        cur_image_idx = 0
+        if len(overall_feat_after_proj_split_list) == 0:
+            overall_feat_after_proj_split_list.append(torch.zeros(96, 1024).to(self.visual_encoder.device).to(self.visual_encoder.dtype))
+        for batch_idx, (cur_input_ids, instance, vision_feat_perinstance) in enumerate(zip(input_ids, instance_list, overall_feat_after_proj_split_list)):
+            num_images = (cur_input_ids == IMAGE_TOKEN_INDEX).sum()
+            num_videos = (cur_input_ids == VIDEO_TOKEN_INDEX).sum()
+
+            #num_videos = # (cur_input_ids == VIDEO_TOKEN_INDEX).sum() 
+            # print(f'image num {num_images}, video num {num_videos}')
+            if num_images == 0 and num_videos == 0:
+                cur_pixel_values = pixel_values[cur_image_idx]
+                cur_inputs_embeds_1 = llm.get_input_embeddings()(cur_input_ids)
+                cur_inputs_embeds = torch.cat(
+                    [cur_inputs_embeds_1], dim=0)
+                new_inputs_embeds.append(cur_inputs_embeds)
+                new_labels.append(labels[batch_idx])
+                cur_image_idx += 1
+                continue
+
+            
+            if num_videos > 0:
+                video_token_indices =  [-1] + torch.where(       #[-1, 4, cur_input_ids.shape[0]]
+                    cur_input_ids == VIDEO_TOKEN_INDEX)[0].tolist() + [
+                        cur_input_ids.shape[0]
+                    ]
+                
+                cur_input_ids_noim = []
+                cur_labels = labels[batch_idx]
+                cur_labels_noim = []
+                for i in range(len(video_token_indices) - 1):
+                    cur_input_ids_noim.append(cur_input_ids[video_token_indices[i] +
+                                                            1:video_token_indices[i +
+                                                                                1]])
+                    cur_labels_noim.append(cur_labels[video_token_indices[i] +
+                                                    1:video_token_indices[i + 1]])
+                # print(cur_input_ids_noim, cur_labels_noim)
+                split_sizes = [x.shape[0] for x in cur_labels_noim]
+                cur_inputs_embeds = llm.get_input_embeddings()(
+                    torch.cat(cur_input_ids_noim))
+                cur_inputs_embeds_no_im = torch.split(
+                    cur_inputs_embeds, split_sizes, dim=0)
+                # print(cur_inputs_embeds.shape, cur_inputs_embeds_no_im)
+                cur_new_inputs_embeds = []
+                cur_new_labels = []
+
+                for i in range(num_videos + 1):
+                    cur_new_inputs_embeds.append(cur_inputs_embeds_no_im[i])
+                    cur_new_labels.append(cur_labels_noim[i])
+                    if i < num_videos:
+                        cur_pixel_values = pixel_values[cur_image_idx: cur_image_idx + num_frames]
+                        cur_image_idx += num_frames
+                        if chatuniviModel is None:
+                            for item in cur_pixel_values:
+                                #VIDEO Squeeze to IMAGE
+                                cur_new_inputs_embeds.append(item) #check here
+                                cur_new_labels.append(
+                                    torch.full((item.shape[0], ),
+                                            IGNORE_INDEX,
+                                            device=cur_labels.device,
+                                            dtype=cur_labels.dtype))
+
+                        else:
+                            cur_new_inputs_embeds.append(vision_feat_perinstance[i])
+                            cur_new_labels.append(
+                                    torch.full((vision_feat_perinstance[i].shape[0], ),#report error here
+                                            IGNORE_INDEX,
+                                            device=cur_labels.device,
+                                            dtype=cur_labels.dtype))
+
+            
+            if num_images > 0:
+                image_token_indices = [-1] + torch.where(
+                    cur_input_ids == IMAGE_TOKEN_INDEX)[0].tolist() + [
+                        cur_input_ids.shape[0]
+                    ]
+                # print(f'image token indices: {image_token_indices}, {cur_input_ids.shape[0]}')
+                cur_input_ids_noim = []
+                cur_labels = labels[batch_idx]
+                cur_labels_noim = []
+                for i in range(len(image_token_indices) - 1):
+                    cur_input_ids_noim.append(cur_input_ids[image_token_indices[i] +
+                                                            1:image_token_indices[i +
+                                                                                1]])
+                    cur_labels_noim.append(cur_labels[image_token_indices[i] +
+                                                    1:image_token_indices[i + 1]])
+                split_sizes = [x.shape[0] for x in cur_labels_noim]
+                cur_inputs_embeds = llm.get_input_embeddings()(
+                    torch.cat(cur_input_ids_noim))
+                cur_inputs_embeds_no_im = torch.split(
+                    cur_inputs_embeds, split_sizes, dim=0)
+                cur_new_inputs_embeds = []
+                cur_new_labels = []
+
+                for i in range(num_images + 1):
+                    cur_new_inputs_embeds.append(cur_inputs_embeds_no_im[i])
+                    cur_new_labels.append(cur_labels_noim[i])
+                    if i < num_images:
+                        cur_pixel_values = pixel_values[cur_image_idx]
+                        cur_image_idx += 1
+                        if chatuniviModel is None:
+                            cur_new_inputs_embeds.append(cur_pixel_values)
+                            cur_new_labels.append(
+                                torch.full((cur_pixel_values.shape[0], ),
+                                        IGNORE_INDEX,
+                                        device=cur_labels.device,
+                                        dtype=cur_labels.dtype))
+                        else:
+                            # cur_image_features = chatuniviModel(cur_pixel_values.unsqueeze(0), input_type="image").squeeze(0)
+                            # cur_image_features = cur_image_features.to(cur_inputs_embeds.dtype)
+                            # cur_image_features = cur_image_features.to(cur_inputs_embeds.device)
+                            cur_new_inputs_embeds.append(vision_feat_perinstance[i])
+                            cur_new_labels.append(
+                                torch.full((vision_feat_perinstance[i].shape[0], ),
+                                        IGNORE_INDEX,
+                                        device=cur_labels.device,
+                                        dtype=cur_labels.dtype))
+
+            cur_new_inputs_embeds = torch.cat(cur_new_inputs_embeds)
+            cur_new_labels = torch.cat(cur_new_labels)
+
+            new_inputs_embeds.append(cur_new_inputs_embeds)
+            new_labels.append(cur_new_labels)
+
+        # Combine them
+        max_len = max(x.shape[0] for x in new_inputs_embeds)
+        batch_size = len(new_inputs_embeds)
+
+        new_inputs_embeds_padded = []
+        new_labels_padded = torch.full((batch_size, max_len),
+                                    IGNORE_INDEX,
+                                    dtype=new_labels[0].dtype,
+                                    device=new_labels[0].device)
+        attention_mask = torch.zeros((batch_size, max_len),
+                                    dtype=attention_mask.dtype,
+                                    device=attention_mask.device)
+        position_ids = torch.zeros((batch_size, max_len),
+                                dtype=position_ids.dtype,
+                                device=position_ids.device)
+
+        for i, (cur_new_embed,
+                cur_new_labels) in enumerate(zip(new_inputs_embeds, new_labels)):
+            cur_len = cur_new_embed.shape[0]
+            new_inputs_embeds_padded.append(
+                torch.cat((cur_new_embed,
+                        torch.zeros((max_len - cur_len, cur_new_embed.shape[1]),
+                                    dtype=cur_new_embed.dtype,
+                                    device=cur_new_embed.device)),
+                        dim=0))
+            if cur_len > 0:
+                new_labels_padded[i, :cur_len] = cur_new_labels
+                attention_mask[i, :cur_len] = True
+                position_ids[i, :cur_len] = torch.arange(
+                    0,
+                    cur_len,
+                    dtype=position_ids.dtype,
+                    device=position_ids.device)
+
+        new_inputs_embeds = torch.stack(new_inputs_embeds_padded, dim=0)
+        # print(new_inputs_embeds.shape)
+
+        if _labels is None:
+            new_labels = None
+        else:
+            new_labels = new_labels_padded
+
+        if _attention_mask is None:
+            attention_mask = None
+        else:
+            attention_mask = attention_mask.to(dtype=_attention_mask.dtype)
+
+        if _position_ids is None:
+            position_ids = None
+        # try:
+        #     print(new_inputs_embeds.shape, new_labels.shape)
+        # except:
+        #     print('get failure')
+        return {
+            'input_ids': None,
+            'position_ids': position_ids,
+            'attention_mask': attention_mask,
+            'past_key_values': past_key_values,
+            'inputs_embeds': new_inputs_embeds,
+            'labels': new_labels
+        }
     
 
 

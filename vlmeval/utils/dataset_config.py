@@ -66,7 +66,7 @@ dataset_md5_dict = {
     "MSVD":'cb0f6470fdc549797166406bfb8e0dfc',
     "ActivityNet": 'fc3a6d31a097d8ca29986f671bbfdac8',
     "MSRVTT_MINOR": 'a2c4bf5cf8e569b1930623973c7bc8f6',
-    "MVBench": 'fdbc72831636d457bc2caa935195b529',
+    "MVBench": 'f70f3db704aa74a01ebbb6eced9403bb',
     "MMBench_VIDEO": "62c649f096a213d69cfcdbd8cea874ad",
 }
 
@@ -102,13 +102,15 @@ def DATASET_TYPE(dataset):
     dataset = dataset.lower()
     if dataset == 'mmbench_video':
         return 'multi-choice-video'
-    elif listinstr(['mmbench', 'seedbench', 'ccbench', 'mmmu', 'scienceqa', 'ai2d', 'mvbench'], dataset):
+    elif dataset == 'mvbench':
+        return 'multi-choice-mvbench'
+    elif listinstr(['mmbench', 'seedbench', 'ccbench', 'mmmu', 'scienceqa', 'ai2d'], dataset):
         return 'multi-choice'
     elif listinstr(['mme', 'hallusion'], dataset):
         return 'Y/N'
     elif 'coco' in dataset:
         return 'Caption'
-    elif listinstr(['ocrvqa', 'textvqa', 'chartqa', 'mathvista', 'docvqa', 'llavabench', 'mmvet', 'OCRBench', 'MSRVTT', 'MSVD', 'ActivityNet','MSRVTT_MINOR','MMBench_VIDEO'], dataset):
+    elif listinstr(['ocrvqa', 'textvqa', 'chartqa', 'mathvista', 'docvqa', 'llavabench', 'mmvet', 'OCRBench', 'MSRVTT', 'MSVD', 'ActivityNet','MSRVTT_MINOR'], dataset):
         return 'VQA'
     else:
         return 'QA'

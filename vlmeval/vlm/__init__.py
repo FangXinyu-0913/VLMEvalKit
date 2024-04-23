@@ -25,3 +25,4 @@ from .xcomposer import XComposer
 from .xcomposer2 import XComposer2
 from .yi_vl import Yi_VL
 from .internvl_chat import InternVLChat
+from .chatuniviModel import ChatUniViMetaForCausalLM

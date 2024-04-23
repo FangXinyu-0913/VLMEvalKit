@@ -124,12 +124,16 @@ def infer_data(model_name, work_dir, dataset_name, out_file, verbose=False, api_
                 response = model.generate(prompt=struct['text'], image_path=struct['image'][0], dataset=dataset_name)
             else:
                 response = '[MMMU] Failed, multiple images exist while the model only support single-image generate API. '
+        elif listinstr(['MVBench'], dataset_name):
+            system_question_prompt = "Carefully watch the video and pay attention to the cause and sequence of events, the detail and movement of objects, and the action and pose of persons. Based on your observations, select the best option that accurately addresses the question.\n"
+            response = model.generate(prompt=system_question_prompt + data.iloc[i]['question'] + "\nOnly give the best option.", video_path=data.iloc[i]['video_path'], dataset=dataset_name)
         elif 'video_path' in data.iloc[i].keys():
             response = model.generate(prompt=data.iloc[i]['question'], video_path=data.iloc[i]['video_path'], dataset=dataset_name)
         else:
             response = model.generate(prompt=struct['text'], image_path=struct['image'], dataset=dataset_name)
         torch.cuda.empty_cache()
         
+        response = response.replace('<|im_end|>','')
         if verbose:
             print(response, flush=True)
 
