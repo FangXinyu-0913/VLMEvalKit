@@ -2,12 +2,12 @@ import torch
 
 torch.set_grad_enabled(False)
 torch.manual_seed(1234)
+from .base import BaseModel
 from .cogvlm import CogVlm
 from .emu import Emu
-from .idefics import IDEFICS
+from .idefics import IDEFICS, IDEFICS2
 from .instructblip import InstructBLIP
-from .llava import LLaVA
-from .llava_xtuner import LLaVA_XTuner
+from .llava import LLaVA, LLaVA_Next, LLaVA_XTuner
 from .llava_xtuner_video import LLaVA_XTuner_VIDEO
 from .minicpm_v import MiniCPM_V
 from .minigpt4 import MiniGPT4
@@ -18,11 +18,10 @@ from .omnilmm import OmniLMM12B
 from .open_flamingo import OpenFlamingo
 from .pandagpt import PandaGPT
 from .qwen_vl import QwenVL, QwenVLChat
-from .sharedcaptioner import SharedCaptioner
 from .transcore_m import TransCoreM
 from .visualglm import VisualGLM
-from .xcomposer import XComposer
-from .xcomposer2 import XComposer2
+from .xcomposer import ShareCaptioner, XComposer, XComposer2, XComposer2_4KHD
 from .yi_vl import Yi_VL
 from .internvl_chat import InternVLChat
 from .chatuniviModel import ChatUniViMetaForCausalLM
+from .deepseek_vl import DeepSeekVL

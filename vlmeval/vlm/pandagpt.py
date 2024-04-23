@@ -2,10 +2,13 @@ import sys
 import torch
 import os.path as osp
 import warnings
+from .base import BaseModel
 
-class PandaGPT:
+
+class PandaGPT(BaseModel):
 
     INSTALL_REQ = True
+    INTERLEAVE = False
 
     def __init__(self, name, root=None, **kwargs):
         if root is None:
@@ -18,14 +21,17 @@ class PandaGPT:
         try:
             from model.openllama import OpenLLAMAPEFTModel
         except:
-            raise ImportError('Please first install PandaGPT and set the root path to use PandaGPT, which is cloned from here: https://github.com/yxuansu/PandaGPT. ')
+            raise ImportError(
+                'Please first install PandaGPT and set the root path to use PandaGPT, '
+                'which is cloned from here: https://github.com/yxuansu/PandaGPT. '
+            )
         self.args = {
             'model': 'openllama_peft',
             'imagebind_ckpt_path': osp.join(root, 'pretrained_ckpt/imagebind_ckpt'),
             'vicuna_ckpt_path': osp.join(root, 'pretrained_ckpt/vicuna_ckpt/13b_v0'),
             'delta_ckpt_path': osp.join(root, 'pretrained_ckpt/pandagpt_ckpt/13b/pytorch_model.pt'),
             'stage': 2,
-            'max_tgt_len': 256,
+            'max_tgt_len': 512,
             'lora_r': 32,
             'lora_alpha': 32,
             'lora_dropout': 0.1,
@@ -38,12 +44,13 @@ class PandaGPT:
         kwargs_default = {'top_p': 0.9, 'do_sample': False, 'max_tgt_len': 128, 'temperature': 0.001}
         kwargs_default.update(kwargs)
         self.kwargs = kwargs_default
-        warnings.warn(f"Following kwargs received: {self.kwargs}, will use as generation config. ")
-        
-    def generate(self, image_path, prompt, dataset=None):
+        warnings.warn(f'Following kwargs received: {self.kwargs}, will use as generation config. ')
+
+    def generate_inner(self, message, dataset=None):
+        prompt, image_path = self.message_to_promptimg(message)
         struct = {
-            'prompt': prompt, 
-            'image_paths': [image_path], 
+            'prompt': prompt,
+            'image_paths': [image_path],
             'audio_paths': [],
             'video_paths': [],
             'thermal_paths': [],

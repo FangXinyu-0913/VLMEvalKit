@@ -1,16 +1,18 @@
 import sys
 import torch
 from PIL import Image
-from transformers import AutoModel, AutoTokenizer
+from transformers import AutoTokenizer
 
+from .base import BaseModel
 from ..smp import *
-from ..utils import DATASET_TYPE, CustomPrompt
+from ..utils import DATASET_TYPE
 
 
-DEFAULT_IMAGE_TOKEN = "<image>"
-DEFAULT_IMAGE_PATCH_TOKEN = "<im_patch>"
-DEFAULT_IM_START_TOKEN = "<im_start>"
-DEFAULT_IM_END_TOKEN = "<im_end>"
+DEFAULT_IMAGE_TOKEN = '<image>'
+DEFAULT_IMAGE_PATCH_TOKEN = '<im_patch>'
+DEFAULT_IM_START_TOKEN = '<im_start>'
+DEFAULT_IM_END_TOKEN = '<im_end>'
+
 
 def init_omni_lmm(model_path):
     from omnilmm.model.omnilmm import OmniLMMForCausalLM
@@ -26,7 +28,7 @@ def init_omni_lmm(model_path):
 
     image_processor = build_transform(is_train=False, input_size=model.model.config.image_size, std_mode='OPENAI_CLIP')
 
-    mm_use_im_start_end = getattr(model.config, "mm_use_im_start_end", False)
+    mm_use_im_start_end = getattr(model.config, 'mm_use_im_start_end', False)
     assert mm_use_im_start_end
 
     tokenizer.add_tokens([DEFAULT_IMAGE_PATCH_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN], special_tokens=True)
@@ -41,6 +43,7 @@ def init_omni_lmm(model_path):
 
     return model, image_processor, image_token_len, tokenizer
 
+
 def expand_question_into_multimodal(question_text, image_token_len, im_st_token, im_ed_token, im_patch_token):
     if '<image>' in question_text[0]['content']:
         question_text[0]['content'] = question_text[0]['content'].replace(
@@ -50,23 +53,23 @@ def expand_question_into_multimodal(question_text, image_token_len, im_st_token,
             image_token_len + im_ed_token + '\n' + question_text[0]['content']
     return question_text
 
+
 def wrap_question_for_omni_lmm(question, image_token_len, tokenizer):
     from omnilmm.train.train_utils import omni_preprocess
     question = expand_question_into_multimodal(
         question, image_token_len, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN, DEFAULT_IMAGE_PATCH_TOKEN)
 
     conversation = question
-    data_dict = omni_preprocess(sources=[conversation],
-                                  tokenizer=tokenizer,
-                                  generation=True)
+    data_dict = omni_preprocess(sources=[conversation], tokenizer=tokenizer, generation=True)
 
-    data_dict = dict(input_ids=data_dict["input_ids"][0],
-                     labels=data_dict["labels"][0])
+    data_dict = dict(input_ids=data_dict['input_ids'][0], labels=data_dict['labels'][0])
     return data_dict
 
-class OmniLMM12B(CustomPrompt):
+
+class OmniLMM12B(BaseModel):
 
     INSTALL_REQ = True
+    INTERLEAVE = False
 
     def __init__(self, model_path, root, **kwargs) -> None:
         sys.path.append(root)
@@ -86,15 +89,16 @@ class OmniLMM12B(CustomPrompt):
         self.kwargs = default_kwargs
         torch.cuda.empty_cache()
 
-    def generate(self, image_path, prompt, dataset=None):
+    def generate_inner(self, message, dataset=None):
+        prompt, image_path = self.message_to_promptimg(message)
         try:
             image = Image.open(image_path).convert('RGB')
-        except Exception as e:
+        except:
             logger = get_logger('OmniLMM Inference')
-            logger.error("Image Decode Error")
-            return "Image Decode Error"
+            logger.error('Image Decode Error')
+            return 'Image Decode Error'
 
-        msgs = [dict(role="user", content=prompt)]
+        msgs = [dict(role='user', content=prompt)]
         input_ids = wrap_question_for_omni_lmm(
             msgs, self.image_token_len, self.tokenizer)['input_ids']
         input_ids = torch.as_tensor(input_ids)
@@ -110,13 +114,13 @@ class OmniLMM12B(CustomPrompt):
                 output.sequences[0], skip_special_tokens=True)
             response = response.strip()
             return response
-    
+
     def use_custom_prompt(self, dataset):
         assert dataset is not None
         if DATASET_TYPE(dataset) == 'multi-choice':
             return True
         return False
-    
+
     def build_prompt(self, line, dataset=None):
         assert dataset is None or isinstance(dataset, str)
         assert self.use_custom_prompt(dataset)
@@ -138,6 +142,11 @@ class OmniLMM12B(CustomPrompt):
         prompt += f'{question}\n'
         if len(options):
             prompt += options_prompt
-            prompt = 'Study the image carefully and pick the option associated with the correct answer. Focus solely on selecting the option and avoid including any other content.\n' + prompt
+            prompt = """
+Study the image carefully and pick the option associated with the correct answer.
+Focus solely on selecting the option and avoid including any other content.\n
+""" + prompt
 
-        return {'image': tgt_path, 'text': prompt}
+        message = [dict(type='text', value=prompt)]
+        message.extend([dict(type='image', value=s) for s in tgt_path])
+        return message
