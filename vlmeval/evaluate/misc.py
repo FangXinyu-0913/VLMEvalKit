@@ -7,7 +7,7 @@ INTERNAL = os.environ.get('INTERNAL', 0)
 
 def build_judge(**kwargs):
     model = kwargs.pop('model', None)
-    load_env()
+    # load_env()
     LOCAL_LLM = os.environ.get('LOCAL_LLM', None)
     if LOCAL_LLM is None:
         model_map = {
@@ -17,7 +17,8 @@ def build_judge(**kwargs):
             'gpt-4-0125': 'gpt-4-0125-preview',
             'chatgpt-1106': 'gpt-3.5-turbo-1106',
             'chatgpt-0613': 'gpt-3.5-turbo-0613',
-            'chatgpt-0125': 'gpt-3.5-turbo-0125'
+            'chatgpt-0125': 'gpt-3.5-turbo-0125',
+            
         }
         model_version = model_map[model]
     else:

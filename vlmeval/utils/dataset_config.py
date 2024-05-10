@@ -37,7 +37,7 @@ dataset_URLs = {
     "MSRVTT_MINOR": 'https://opencompass.openxlab.space/utils/VLMEval/MSRVTT_MINOR.tsv',
     "MVBench": 'https://opencompass.openxlab.space/utils/VLMEval/MVBench.tsv',
     "MMBench_VIDEO": "https://opencompass.openxlab.space/utils/VLMEval/MMBench_VIDEO.tsv",
-
+    "MMBench_VIDEO_0423_T1998": "https://opencompass.openxlab.space/utils/VLMEval/MMBench_VIDEO_0423_T1998.tsv",
 }
 
 dataset_md5_dict = {
@@ -79,6 +79,7 @@ dataset_md5_dict = {
     "MSRVTT_MINOR": 'a2c4bf5cf8e569b1930623973c7bc8f6',
     "MVBench": 'f70f3db704aa74a01ebbb6eced9403bb',
     "MMBench_VIDEO": "62c649f096a213d69cfcdbd8cea874ad",
+    "MMBench_VIDEO_0423_T1998": "a2f7925f423e0c780741314a1fb23b83"
 }
 
 img_root_map = {k: k for k in dataset_URLs}
@@ -111,15 +112,16 @@ img_root_map.update({
     "MSRVTT_MINOR": 'MSRVTT_MINOR',
     "MVBench": 'MVBench',
     "MMBench_VIDEO": "MMBench_VIDEO",
+    "MMBench_VIDEO_0423_T1998": "MMBench_VIDEO_0423_T1998"
 })
 
-assert set(dataset_URLs) == set(img_root_map)
+# assert set(dataset_URLs) == set(img_root_map)
 
 
 def DATASET_TYPE(dataset):
     # Dealing with Custom Dataset
     dataset = dataset.lower()
-    if dataset == 'mmbench_video':
+    if 'mmbench_video' in dataset:
         return 'multi-choice-video'
     elif dataset == 'mvbench':
         return 'multi-choice-mvbench'
@@ -130,7 +132,7 @@ def DATASET_TYPE(dataset):
     elif 'coco' in dataset:
         return 'Caption'
     elif listinstr(['ocrvqa', 'textvqa', 'chartqa', 'mathvista', 'docvqa', 'infovqa', 'llavabench', 'mmvet', 'ocrbench', 
-                    'MSRVTT', 'MSVD', 'ActivityNet','MSRVTT_MINOR'], dataset):
+                    'msrvtt', 'msvd', 'activitynet','msrvtt_minor'], dataset):
         return 'VQA'
     else:
         if dataset not in dataset_URLs:

@@ -149,7 +149,14 @@ def infer_data(model_name, work_dir, dataset_name, out_file, verbose=False, api_
             struct = split_MMMU(struct)
 
         # For now, we do not use split_MMMU for MMMU dataset
-        response = model.generate(message=struct, dataset=dataset_name)
+        if 'video_path' in data.iloc[i].keys():
+            if listinstr(['MVBench'], dataset_name):
+                system_question_prompt = "Carefully watch the video and pay attention to the cause and sequence of events, the detail and movement of objects, and the action and pose of persons. Based on your observations, select the best option that accurately addresses the question.\n"
+                response = model.generate(prompt=system_question_prompt + data.iloc[i]['question'] + "\nOnly give the best option.", video_path=data.iloc[i]['video_path'], dataset=dataset_name)
+            else:
+                response = model.generate(prompt=data.iloc[i]['question'], video_path=data.iloc[i]['video_path'], dataset=dataset_name)
+        else:
+            response = model.generate(message=struct, dataset=dataset_name)
         response = response.replace('<|im_end|>','')
         torch.cuda.empty_cache()
 
@@ -217,6 +224,7 @@ def infer_data_job(model, work_dir, model_name, dataset_name, verbose=False, api
     #         data['prediction'] = [str(answer_map[x]) for x in data['index']]
     #         dump(data, result_file)
     #     return model_name
+            
     tmpl = osp.join(work_dir, '{}' + f'{world_size}_{dataset_name}.pkl')
     out_file = tmpl.format(rank)
 
@@ -234,7 +242,10 @@ def infer_data_job(model, work_dir, model_name, dataset_name, verbose=False, api
         for x in data['index']:
             assert x in data_all
         data['prediction'] = [str(data_all[x]) for x in data['index']]
-        data.pop('image')
+        try:
+            data.pop('image')
+        except:
+            data.pop('video_path')
 
         dump(data, result_file)
         for i in range(world_size):

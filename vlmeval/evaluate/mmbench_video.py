@@ -27,7 +27,7 @@ system_prompt = (
     "A rating of 1 suggests low similarity, meaning the candidate answer is largely incorrect. "
     "A rating of 2 suggests high similarity, meaning the candidate answer is largely correct. "
     "Lastly, a rating of 3 indicates complete similarity, which means the candidate answer is entirely correct. "
-    "Your response should be a single integer from 0, 1, 2, or 3."
+    "Your response should be a single integer from 0, 1, 2, or 3. "
 )
 
 MMV_DIMENSIONS = {
@@ -93,9 +93,9 @@ def read_excel_to_list_of_dicts(file_path):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data', type=str, nargs='+', required=True)
-    parser.add_argument('--model', type=str, default='gpt35')
-    parser.add_argument('--nproc', type=int, default=1)
+    parser.add_argument('--data_file', type=str, required=True)
+    parser.add_argument('--model', type=str, default='gpt-4-1106-preview')
+    parser.add_argument('--nproc', type=int, default=8)
     parser.add_argument("--verbose", action='store_true')
     args = parser.parse_args()
     return args
@@ -197,15 +197,21 @@ def visualize_rating(result, data_root):
 
 # def main():
 def MMBench_VIDEO_eval(data_file, model, nproc, verbose):
-    
+    nproc = 8 if nproc <= 8 else nproc
+    # model = 'gpt-4-turbo-2024-04-09'
+    print(data_file)
     data = read_excel_to_list_of_dicts(data_file)
     # model = model_map[args.model](system_prompt=system_prompt)
+
+    data_root = data_file.replace('.xlsx', '')
+    # data_root = data_root + model
+    os.makedirs(data_root, exist_ok=True)
+
     print(model)
-    model = OpenAIWrapper(model, retry=3, api_base='XIAOHAI',system_prompt=system_prompt, verbose=verbose)
+    model = OpenAIWrapper(model, retry=3, system_prompt=system_prompt, verbose=verbose)
 
     # for _, data_file in enumerate(data):
-    data_root = data_file.replace('.xlsx', '')
-    os.makedirs(data_root, exist_ok=True)
+
 
     tmp_file = osp.join(data_root, 'tmp.json')
     tgt_file = osp.join(data_root, 'rating.json')
@@ -213,7 +219,7 @@ def MMBench_VIDEO_eval(data_file, model, nproc, verbose):
 
     while True:
         res = {} if not osp.exists(tmp_file) else load(tmp_file)
-        res = {k: v for k, v in res.items() if model.fail_msg not in v}
+        res = {k: v for k, v in res.items() if model.fail_msg not in v and 'Sorry, I didn\'t understand your query. Can you provide more details?' not in v}
 
         if len(res.keys()) == len(data):
             break
@@ -258,5 +264,6 @@ def MMBench_VIDEO_eval(data_file, model, nproc, verbose):
     dump(ret, score_file)
     visualize_rating(ret, data_root)
 
-# if __name__ == '__main__':
-#     main()
+if __name__ == '__main__':
+    args = parse_args()
+    MMBench_VIDEO_eval(args.data_file, args.model, args.nproc, args.verbose)

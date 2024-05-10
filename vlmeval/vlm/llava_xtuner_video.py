@@ -9,7 +9,7 @@ import torch
 from huggingface_hub import snapshot_download
 from PIL import Image
 from transformers import (AutoModel, AutoModelForCausalLM, AutoTokenizer,
-                          CLIPImageProcessor, CLIPVisionModel,
+                          CLIPImageProcessor, CLIPVisionModel, SiglipVisionModel, AutoProcessor,
                           GenerationConfig, StoppingCriteriaList)
 
 from ..smp import cn_string, get_cache_path
@@ -151,6 +151,8 @@ class LLaVA_XTuner_VIDEO(CustomPrompt):
                  stop_words=[],
                  torch_dtype=torch.float16,
                  compress_video_tokens_with_chatunivi=False,
+                 internvit=False,
+                 siglip=False,
                  mode='pretrain'):
         try:
             from peft import PeftModel
@@ -197,11 +199,26 @@ class LLaVA_XTuner_VIDEO(CustomPrompt):
             assert visual_encoder_path is not None, (
                 'Please specify the `visual_encoder_path`!')
         # print(visual_encoder_path)
-        visual_encoder = CLIPVisionModel.from_pretrained(
-            visual_encoder_path, torch_dtype=torch_dtype, device_map='cpu')
-        image_processor = CLIPImageProcessor.from_pretrained(
-            visual_encoder_path)
-        print(f'Load visual_encoder from {visual_encoder_path}')
+        self.internvit = internvit
+        self.siglip = siglip
+        if self.internvit:
+            visual_encoder = AutoModel.from_pretrained(
+                visual_encoder_path, torch_dtype = torch_dtype, trust_remote_code=True, device_map='cpu')
+            image_processor = CLIPImageProcessor.from_pretrained(
+                visual_encoder_path)
+            print(f'Load visual_encoder from {visual_encoder_path}')
+        elif self.siglip:
+            visual_encoder = SiglipVisionModel.from_pretrained(
+                visual_encoder_path, torch_dtype = torch_dtype, trust_remote_code=True, device_map='cpu')
+            image_processor = AutoProcessor.from_pretrained(
+                visual_encoder_path)
+            print(f'Load visual_encoder from {visual_encoder_path}')
+        else:
+            visual_encoder = CLIPVisionModel.from_pretrained(
+                visual_encoder_path, torch_dtype=torch_dtype, device_map='cpu')
+            image_processor = CLIPImageProcessor.from_pretrained(
+                visual_encoder_path)
+            print(f'Load visual_encoder from {visual_encoder_path}')
 
         # load adapter
         if 'llm_adapter' in os.listdir(llava_path):
@@ -352,6 +369,7 @@ class LLaVA_XTuner_VIDEO(CustomPrompt):
                 import numpy as np
                 import imageio
                 if os.path.isdir(video_path):
+                    print(video_path)
                     fname, fename = os.path.split(video_path)
                     target_file_name = os.path.join(fname, f'{fename}.mp4')
                     filelist = os.listdir(video_path)
@@ -362,7 +380,6 @@ class LLaVA_XTuner_VIDEO(CustomPrompt):
                                 frame = np.array(Image.open(os.path.join(video_path,file_name)).convert('RGB'))
                                 # frame = cv2.imread(os.path.join(img_root,file_name)).convert('RGB')
                                 video.append_data(frame)
-
 
                 else:
                     from moviepy.editor import VideoFileClip
@@ -384,11 +401,11 @@ class LLaVA_XTuner_VIDEO(CustomPrompt):
 
 
             except Exception as ne:
-                print(f'Error: {ne}, {video_path}, load video failed!')
+                print(f'Error: {ne}, {video_path}, {target_file_name}, load video failed!')
                 raise
         video = video.permute(1,0,2,3).cuda()
-        # print(video.shape, self.visual_encoder)
-        visual_outputs = self.visual_encoder(video, output_hidden_states=True)
+        # print(video.shape, self.visual_encoder.dtype)
+        visual_outputs = self.visual_encoder(video.to(self.visual_encoder.dtype), output_hidden_states=True)
         
         if self.enable_compress_tokens:
             pixel_values = visual_outputs.hidden_states[self.visual_select_layer][:, 1:]

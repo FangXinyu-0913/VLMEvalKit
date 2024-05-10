@@ -135,7 +135,7 @@ def main():
                     MathVista_eval(result_file, **judge_kwargs)
                 elif listinstr(['LLaVABench'], dataset_name):
                     LLaVABench_eval(result_file, **judge_kwargs)
-                elif listinstr(['MMBench_VIDEO'], dataset_name):
+                elif 'mmbench_video' in dataset_name.lower(): #listinstr(['MMBench_VIDEO'], dataset_name):
                     MMBench_VIDEO_eval(result_file, model='gpt-4-1106-preview', nproc=args.nproc, verbose=args.verbose) #previous 'gpt-3.5-turbo-0613'
                 elif listinstr(['MVBench'], dataset_name):
                     output_json = f'{pred_root}/eval_results_{model_name}_{dataset_name}.json'
@@ -145,7 +145,7 @@ def main():
                     output_dir = f'{pred_root}/eval_{dataset_name}/'
                     output_json = f'{pred_root}/eval_results_{model_name}_{dataset_name}.json'
                     score_result_file = f'{pred_root}/eval_scores_{model_name}_{dataset_name}.json'
-                    Video_eval(result_file, output_dir, output_json, score_result_file, model='gpt-3.5-turbo-0125', nproc=args.nproc, verbose=args.verbose)
+                    Video_eval(result_file, output_dir, output_json, score_result_file, model='chatgpt-0125', nproc=args.nproc, verbose=args.verbose)
                 else:
                     logger.error(f'Dataset {dataset_name} is not handled by evaluator, will be skipped. ')
 

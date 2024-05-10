@@ -9,9 +9,11 @@ from multiprocessing.pool import Pool
 from tqdm import tqdm
 import time
 from vlmeval.smp import *
-from .misc import build_judge
+try:
+    from .misc import build_judge
+except:
+    from vlmeval.evaluate.misc import build_judge
 from vlmeval.utils import track_progress_rich
-
 
 
 # client = OpenAI(
@@ -98,15 +100,25 @@ def MVBench_eval(eval_file, result_save_path, result_leader_board_path):
 
 
 def VIDEO_eval(model, key, question, answer, pred, output_dir):
-    prompt = f"Please evaluate the following video-based question-answer pair:\nQuestion: {question}\nCorrect Answer: {answer}\nPredicted Answer: {pred}\n \
-Provide your evaluation only as a yes/no and score where the score is an integer value between 0 and 5, with 5 indicating the highest meaningful match.\n \
-Please generate the response in the form of a Python dictionary string with keys 'pred' and 'score', where value of 'pred' is  a string of 'yes' or 'no' and value of 'score' is in INTEGER, not STRING.\n \
-DO NOT PROVIDE ANY OTHER OUTPUT TEXT OR EXPLANATION. Only provide the Python dictionary string. \n \
-For example, your response should look like this: {{'pred': 'yes', 'score': 4.8}}."
+    prompt = [
+        {
+            "role": "user",
+            "content":
+                "Please evaluate the following video-based question-answer pair:\n\n"
+                f"Question: {question}\n"
+                f"Correct Answer: {answer}\n"
+                f"Predicted Answer: {pred}\n\n"
+                "Provide your evaluation only as a yes/no and score where the score is an integer value between 0 and 5, with 5 indicating the highest meaningful match. "
+                "Please generate the response in the form of a Python dictionary string with keys 'pred' and 'score', where value of 'pred' is  a string of 'yes' or 'no' and value of 'score' is in INTEGER, not STRING."
+                "DO NOT PROVIDE ANY OTHER OUTPUT TEXT OR EXPLANATION. Only provide the Python dictionary string. "
+                "For example, your response should look like this: {'pred': 'yes', 'score': 4.8}."
+        }
+    ]
+    prompt_content = prompt[0]['content']
     retry = 5
     for i in range(retry):
         try:
-            response_message = model.generate(prompt)
+            response_message = model.generate(prompt_content)
             response_dict = ast.literal_eval(response_message)
             result_qa_pair = [response_dict, {'q': question, 'a': answer, 'pred': pred}]
             with open(f"{output_dir}/{key}.json", "w") as f:
@@ -179,15 +191,25 @@ def Video_eval(pred_path, output_dir, output_json, score_result_file, model, npr
     """
     Main function to control the flow of the program.
     """
+    if nproc < 8:
+        nproc = 8
+        print(f'set nproc to 8 in video eval at {pred_path}')
     if not os.path.exists(output_json):
         data = load(pred_path)
         data['prediction'] = [str(x) for x in data['prediction']]
         data['answer'] = [str(x) for x in data['answer']]
         data['id'] = [str(x) for x in data['id']]
-        # data['index'] = [str(x) for x in data['answer']]
         data['question'] = [str(x) for x in data['question']]
         new_pred_contents = []
+
+        video_id_counts = {}
         for id, q, a, idx, pred in zip(data['id'], data['question'], data['answer'], data['index'], data['prediction']):
+            if id in video_id_counts:
+                video_id_counts[id] += 1
+            else:
+                video_id_counts[id] = 0
+
+            # id = f"{id}_{video_id_counts[id]}"
             new_pred_contents.append({'id': id, 'question': q, 'answer': a, 'index': idx, 'pred': pred})
         
         # Generating list of id's and corresponding files
@@ -209,7 +231,21 @@ def Video_eval(pred_path, output_dir, output_json, score_result_file, model, npr
             prediction_set[id] = qa_set
 
         num_tasks = verbose
-        model = build_judge(model, api_base='XIAOHAI', verbose=verbose, retry=2)
+        messages=[
+            {
+                "role": "system",
+                "content":
+                    "You are an intelligent chatbot designed for evaluating the correctness of generative outputs for question-answer pairs. "
+                    "Your task is to compare the predicted answer with the correct answer and determine if they match meaningfully. Here's how you can accomplish the task:"
+                    "------"
+                    "##INSTRUCTIONS: "
+                    "- Focus on the meaningful match between the predicted answer and the correct answer.\n"
+                    "- Consider synonyms or paraphrases as valid matches.\n"
+                    "- Evaluate the correctness of the prediction compared to the answer."
+            }
+        ]
+        system_prompt = messages[0]['content']
+        model = build_judge(model=model, system_prompt = system_prompt, verbose=verbose, retry=2)
         retry_times = 0
         # While loop to ensure that all captions are processed.
         while True:
@@ -255,10 +291,6 @@ def Video_eval(pred_path, output_dir, output_json, score_result_file, model, npr
                 
 
             track_progress_rich(VIDEO_eval, tups, nproc=nproc, chunksize=nproc) 
-
-
-            # except Exception as e:
-            #     print(f"Error: {e}")
 
         # Combine all the processed files into one
         combined_contents = {}
@@ -462,4 +494,16 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="question-answer-generation-using-gpt-3")
+    parser.add_argument("--pred_path", default=r'', help="The path to file containing prediction.")
+    parser.add_argument("--output_dir", default=r'', help="The path to save annotation json files.")
+    parser.add_argument("--output_json", default=r'', help="The path to save annotation final combined json file.")
+    parser.add_argument("--score_result_file", default=r'', help="The path to save annotation final combined json file.")
+    parser.add_argument("--api_key", default="", help="OpenAI API key.")
+    parser.add_argument("--api_base", default="", type=str, help="OpenAI API base.")
+    parser.add_argument("--gpt_model", default="chatgpt-0125",type=str)
+    parser.add_argument("--nproc", default=8, type=int, help="Number of splits.")
+    parser.add_argument("--verbose",action='store_true')
+    args = parser.parse_args()
+    print(args)
+    Video_eval(args.pred_path, args.output_dir, args.output_json, args.score_result_file, args.gpt_model, args.nproc, args.verbose)
