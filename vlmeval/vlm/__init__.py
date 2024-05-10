@@ -25,3 +25,6 @@ from .yi_vl import Yi_VL
 from .internvl_chat import InternVLChat
 from .chatuniviModel import ChatUniViMetaForCausalLM
 from .deepseek_vl import DeepSeekVL
+from .mgm import Mini_Gemini
+from .bunnyllama3 import BunnyLLama3
+from .vxverse import VXVERSE

@@ -237,10 +237,12 @@ def multiple_choice_eval(eval_file, dataset='default', **judge_kwargs):
     logger = get_logger('Evaluation')
 
     # assert dataset is not None
-    if dataset == 'MMBench_TEST_CN':
-        dataset = 'MMBench_CN'
-    elif dataset == 'MMBench_TEST_EN':
-        dataset = 'MMBench'
+    dataset_map = {
+        'MMBench_TEST_EN': 'MMBench', 'MMBench_TEST_EN_V11': 'MMBench_V11',
+        'MMBench_TEST_CN': 'MMBench_CN', 'MMBench_TEST_CN_V11': 'MMBench_CN_V11'
+    }
+    if dataset in dataset_map:
+        dataset = dataset_map[dataset]
     nproc = judge_kwargs.pop('nproc', 4)
 
     if listinstr(['mmbench', 'ccbench'], dataset.lower()):
@@ -387,6 +389,11 @@ def parse_args():
 
 
 if __name__ == '__main__':
+    load_env()
     args = parse_args()
-    acc = multiple_choice_eval(
-        eval_file=args.data, model=args.model, dataset=args.dataset, nproc=args.nproc, verbose=args.verbose)
+    judge_kwargs = dict(model=args.model, nproc=args.nproc, verbose=args.verbose)
+    if 'OPENAI_API_KEY_JUDGE' in os.environ and os.environ['OPENAI_API_KEY_JUDGE']:
+        judge_kwargs['key'] = os.environ['OPENAI_API_KEY_JUDGE']
+    if 'OPENAI_API_BASE_JUDGE' in os.environ and os.environ['OPENAI_API_BASE_JUDGE']:
+        judge_kwargs['api_base'] = os.environ['OPENAI_API_BASE_JUDGE']
+    acc = multiple_choice_eval(eval_file=args.data, dataset=args.dataset, **judge_kwargs)

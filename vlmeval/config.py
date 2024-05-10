@@ -7,6 +7,8 @@ MiniGPT4_ROOT = None
 TransCore_ROOT = None
 Yi_ROOT = None
 OmniLMM_ROOT = None
+Mini_Gemini_ROOT = None
+VXVERSE_ROOT = None
 LLAVA_V1_7B_MODEL_PTH = 'Please set your local path to LLaVA-7B-v1.1 here, the model weight is obtained by merging LLaVA delta weight based on vicuna-7b-v1.1 in https://github.com/haotian-liu/LLaVA/blob/main/docs/MODEL_ZOO.md with vicuna-7b-v1.1. '
 
 ungrouped = {
@@ -22,16 +24,26 @@ ungrouped = {
     'MiniCPM-V':partial(MiniCPM_V, model_path='openbmb/MiniCPM-V'),
     'MiniCPM-V-2':partial(MiniCPM_V, model_path='openbmb/MiniCPM-V-2'),
     'OmniLMM_12B':partial(OmniLMM12B, model_path='openbmb/OmniLMM-12B', root=OmniLMM_ROOT),
+    'MGM_7B':partial(Mini_Gemini, model_path='YanweiLi/MGM-7B-HD', root=Mini_Gemini_ROOT),
+    'Bunny-llama3-8B': partial(BunnyLLama3, model_path='BAAI/Bunny-Llama-3-8B-V'),
+    'VXVERSE':partial(VXVERSE, model_name='XVERSE-V-13B', root=VXVERSE_ROOT),
 }
 
 api_models = {
+    # GPT-4V series
     'GPT4V': partial(GPT4V, model='gpt-4-1106-vision-preview', temperature=0, img_size=512, img_detail='low', retry=10),
     'GPT4V_HIGH': partial(GPT4V, model='gpt-4-1106-vision-preview', temperature=0, img_size=-1, img_detail='high', retry=10),
     'GPT4V_20240409': partial(GPT4V, model='gpt-4-turbo-2024-04-09', temperature=0, img_size=512, img_detail='low', retry=10),
     'GPT4V_20240409_HIGH': partial(GPT4V, model='gpt-4-turbo-2024-04-09', temperature=0, img_size=-1, img_detail='high', retry=10),
+    # Gemini-V
     'GeminiProVision': partial(GeminiProVision, temperature=0, retry=10),
+    # Qwen-VL Series
     'QwenVLPlus': partial(QwenVLAPI, model='qwen-vl-plus', temperature=0, retry=10),
     'QwenVLMax': partial(QwenVLAPI, model='qwen-vl-max', temperature=0, retry=10),
+    # Reka Series
+    'RekaEdge': partial(Reka, model='reka-edge-20240208'), 
+    'RekaFlash': partial(Reka, model='reka-flash-20240226'), 
+    'RekaCore': partial(Reka, model='reka-core-20240415'), 
     # Internal Only
     'GPT4V_INT': partial(GPT4V_Internal, model='gpt-4-vision-preview', temperature=0, img_size=512, img_detail='low', retry=10),
     'Step1V': partial(Step1V, temperature=0, retry=10),
@@ -46,6 +58,7 @@ xtuner_series = {
     'llava-internlm-7b': partial(LLaVA_XTuner, llm_path='internlm/internlm-chat-7b', llava_path='xtuner/llava-internlm-7b', visual_select_layer=-2, prompt_template='internlm_chat'),
     'llava-v1.5-7b-xtuner': partial(LLaVA_XTuner, llm_path='/cpfs01/shared/llmeval/dhd/hub/models--lmsys--vicuna-7b-v1.5/snapshots/de56c35b1763eaae20f4d60efd64af0a9091ebe5', llava_path='/cpfs01/shared/llmeval/dhd/hub/models--xtuner--llava-v1.5-7b-xtuner/snapshots/78784f77e0de4d5f401be5621c39414fc3b05f91', visual_select_layer=-2, prompt_template='vicuna'),
     'llava-v1.5-13b-xtuner': partial(LLaVA_XTuner, llm_path='lmsys/vicuna-13b-v1.5', llava_path='xtuner/llava-v1.5-13b-xtuner', visual_select_layer=-2, prompt_template='vicuna'),
+    'llava-llama-3-8b': partial(LLaVA_XTuner, llm_path='xtuner/llava-llama-3-8b-v1_1', llava_path='xtuner/llava-llama-3-8b-v1_1', visual_select_layer=-2, prompt_template='llama3_chat'),
     'llava-internlm2-7b-chat-video-0302': partial(LLaVA_XTuner_VIDEO, llm_path='/cpfs01/shared/llmeval/dhd/hub/models--internlm--internlm2-chat-7b/snapshots/2292b86b21cb856642782cebed0a453997453b1f', llava_path='/cpfs01/user/fangxinyu/xtuner/0302-qlora-result', visual_select_layer=-2, prompt_template='internlm2_chat'),
     'llava-vicuna-1.5-7b-clip-vit-large-p14-336-0322': partial(LLaVA_XTuner_VIDEO, llm_path='/cpfs01/shared/llmeval/dhd/hub/models--lmsys--vicuna-7b-v1.5/snapshots/de56c35b1763eaae20f4d60efd64af0a9091ebe5', llava_path='/cpfs01/user/fangxinyu/xtuner_result/llava_vicuna_7b_v15_qlora_clip_vit_large_p14_336_lora_e1_gpu8_finetune_video_10frame-0322',visual_select_layer=-2, prompt_template='vicuna',num_frames=10,visual_encoder_path='/cpfs01/shared/llmeval/dhd/hub/models--openai--clip-vit-large-patch14-336/snapshots/ce19dc912ca5cd21c8a653c79e251e808ccabcd1'),
     'llava-vicuna-1.5-7b-laion-clip-vit-large-p14-224-0324': partial(LLaVA_XTuner_VIDEO, llm_path='/cpfs01/shared/llmeval/dhd/hub/models--lmsys--vicuna-7b-v1.5/snapshots/de56c35b1763eaae20f4d60efd64af0a9091ebe5', llava_path='/cpfs01/user/fangxinyu/xtuner_result/llava_vicuna_7b_v15_qlora_laion_clip_vit_large_p14_224_lora_e1_gpu8_finetune_video_10frame-0324',visual_select_layer=-2, prompt_template='vicuna',num_frames=10,image_size=224,visual_encoder_path='/cpfs01/shared/llmeval/fangxinyu/hub/models--laion--CLIP-ViT-L-14-DataComp.XL-s13B-b90K'),
@@ -92,10 +105,10 @@ llava_series = {
 }
 
 internvl_series = {
-    'InternVL-Chat-V1-1':partial(InternVLChat, model_path='OpenGVLab/InternVL-Chat-Chinese-V1-1'),
-    'InternVL-Chat-V1-2': partial(InternVLChat, model_path='OpenGVLab/InternVL-Chat-Chinese-V1-2'),
-    'InternVL-Chat-V1-2-Plus': partial(InternVLChat, model_path='OpenGVLab/InternVL-Chat-Chinese-V1-2-Plus'),
-    'InternVL-Chat-V1-5': partial(InternVLChat, model_path='OpenGVLab/InternVL-Chat-V1-5-Preview'),
+    'InternVL-Chat-V1-1':partial(InternVLChat, model_path='OpenGVLab/InternVL-Chat-V1-1'),
+    'InternVL-Chat-V1-2': partial(InternVLChat, model_path='OpenGVLab/InternVL-Chat-V1-2'),
+    'InternVL-Chat-V1-2-Plus': partial(InternVLChat, model_path='OpenGVLab/InternVL-Chat-V1-2-Plus'),
+    'InternVL-Chat-V1-5': partial(InternVLChat, model_path='OpenGVLab/InternVL-Chat-V1-5'),
 }
 
 yivl_series = {
@@ -147,12 +160,13 @@ for grp in model_groups:
 
 transformer_ver = {}
 transformer_ver['4.33.0'] = list(qwen_series) + list(internvl_series) + list(xcomposer_series) + [
-    'mPLUG-Owl2', 'flamingov2', 'VisualGLM_6b', 'MMAlaya', 'PandaGPT_13B'
+    'mPLUG-Owl2', 'flamingov2', 'VisualGLM_6b', 'MMAlaya', 'PandaGPT_13B', 'vxverse'
 ] + list(idefics_series) + list(minigpt4_series) + list(instructblip_series)
 transformer_ver['4.37.0'] = [x for x in llava_series if 'next' not in x] + [
-    'TransCore_M', 'cogvlm-chat', 'cogvlm-grounding-generalist', 'emu2_chat', 'MiniCPM-V', 'MiniCPM-V-2', 'OmniLMM_12B'
+    'TransCore_M', 'cogvlm-chat', 'cogvlm-grounding-generalist', 'emu2_chat', 'MiniCPM-V', 'MiniCPM-V-2', 'OmniLMM_12B', 'InternVL-Chat-V1-5'
 ] + list(xtuner_series) + list(yivl_series) + list(deepseekvl_series)
 transformer_ver['4.39.0'] = [x for x in llava_series if 'next' in x]
+transformer_ver['4.40.0'] = ['idefics2_8b', 'Bunny-llama3-8B']
 
 if __name__ == '__main__':
     import sys
