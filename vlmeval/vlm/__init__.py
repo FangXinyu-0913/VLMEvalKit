@@ -19,6 +19,7 @@ from .llava import (
     LLaVA_Next2,
     LLaVA_OneVision,
     LLaVA_OneVision_HF,
+    ChartCoder,
 )
 from .vita import VITA, VITAQwen2
 from .long_vita import LongVITA

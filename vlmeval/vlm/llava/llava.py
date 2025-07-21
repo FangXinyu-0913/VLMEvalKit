@@ -843,3 +843,88 @@ class LLaVA_OneVision_HF(BaseModel):
             return self.generate_inner_video(message, dataset)
         else:
             return self.generate_inner_image(message, dataset)
+
+
+class ChartCoder(BaseModel):
+    INSTALL_REQ = True
+    INTERLEAVE = False
+    VIDEO_LLM = False
+
+    def __init__(self, model_path="xxxllz/ChartCoder", root_path="/fs-computility/llm/shared/mllm", **kwargs):
+
+        pretrained = model_path
+        model_name = "llava_deepseekcoder"
+        device_map = "auto"
+        self.system_message = ""
+
+        sys.path.append(root_path)
+        try:
+            from llava.model.builder import load_pretrained_model
+            from llava.mm_utils import tokenizer_image_token, process_images, get_model_name_from_path
+            from llava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
+            from llava.conversation import conv_templates, SeparatorStyle
+        except Exception as e:
+            logging.critical(
+                "Please first install ChartCoder and set the root path to use ChartCoder, "
+                "which is cloned from here: https://github.com/thunlp/ChartCoder. "
+            )
+            raise e
+
+        tokenizer, model, image_processor, max_length = load_pretrained_model(pretrained, None, model_name, device_map=device_map)
+        model.eval()
+
+        self.tokenizer = tokenizer   
+        self.model = model
+        self.image_processor = image_processor
+        self.IMAGE_TOKEN_INDEX = IMAGE_TOKEN_INDEX
+        default_kwargs = dict(
+            temperature=0.1,
+            top_p=0.95,
+            max_new_tokens=2048,
+        )
+        default_kwargs.update(kwargs)
+        self.kwargs = default_kwargs
+
+    def generate_inner_image(self, message, dataset=None):
+        from llava.constants import DEFAULT_IMAGE_TOKEN
+        from llava.mm_utils import tokenizer_image_token, process_images
+        content, images = "", []
+        image_sizes = []
+        
+        for msg in message:
+            if msg["type"] == "text":
+                content += msg["value"]
+            elif msg["type"] == "image":
+                img = Image.open(msg["value"]).convert("RGB")
+                images.append(img)
+                image_sizes.append(img.size)
+
+        # 为每张图片生成一个 DEFAULT_IMAGE_TOKEN
+        image_tokens = "".join([f"{DEFAULT_IMAGE_TOKEN}\n" for _ in images])
+        instruction = f"{image_tokens}{content}" if images else content
+        prompt = self.system_message + f"### Instruction:\n{instruction}\n### Response:\n"
+        print(prompt)
+        input_ids = tokenizer_image_token(prompt, self.tokenizer, self.IMAGE_TOKEN_INDEX, return_tensors='pt').unsqueeze(0).cuda()
+        image_tensor = process_images(images, self.image_processor, self.model.config)[0]
+
+        if self.kwargs.get("temperature", 0) > 0:
+            self.kwargs["do_sample"] = True
+        else:
+            self.kwargs["do_sample"] = False
+        self.kwargs["use_cache"] = True
+
+        with torch.inference_mode():
+            output_ids = self.model.generate(
+                input_ids,
+                images=image_tensor.unsqueeze(0).half().cuda(),
+                image_sizes=image_sizes,
+                **self.kwargs)
+
+        outputs = self.tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0].strip()
+        return outputs
+
+    def generate_inner(self, message, dataset=None):
+        if DATASET_MODALITY(dataset) == "VIDEO" and 'megabench' not in dataset.lower():
+            assert False, "ChartCoder does not support video input."
+        else:
+            return self.generate_inner_image(message, dataset)

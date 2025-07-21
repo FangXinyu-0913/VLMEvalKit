@@ -385,6 +385,7 @@ class ChartMimic(ImageBaseDataset):
         "ChartMimic_v2_customized_1800": "https://opencompass.openxlab.space/utils/VLMEval/ChartMimic_v2_customized_1800.tsv",
         "ChartMimic_v2_direct": "https://opencompass.openxlab.space/utils/VLMEval/ChartMimic_v2_direct.tsv",
         "ChartMimic_v2_direct_600": "https://opencompass.openxlab.space/utils/VLMEval/ChartMimic_v2_direct_600.tsv",
+        "ChartMimic_v2_direct_600_with_data": "https://opencompass.openxlab.space/utils/VLMEval/ChartMimic_v2_direct_600_with_data.tsv",
         "ChartMimic_v2_direct_1800": "https://opencompass.openxlab.space/utils/VLMEval/ChartMimic_v2_direct_1800.tsv"
     }
     DATASET_MD5 = {
@@ -395,6 +396,7 @@ class ChartMimic(ImageBaseDataset):
         "ChartMimic_v2_customized_1800": "a6cf57807c07d328689872a77c9f847a",
         "ChartMimic_v2_direct": "1c8b444bd681f808f77f06037866eb19",
         "ChartMimic_v2_direct_600": "3d8d8afecccb6e8feacbcec6834f45f5",
+        "ChartMimic_v2_direct_600_with_data": "33777c44944f9a2305c36e19b8086429",
         "ChartMimic_v2_direct_1800": "340331019c7eaa56cc02080656b66c3c"
     }
 
@@ -520,9 +522,30 @@ class ChartMimic(ImageBaseDataset):
         return msgs
 
     def evaluate(self, eval_file, **judge_kwargs):
-        def judge_one_item_success(item):
-            return item["high_level"]["resp"] not in [FAIL_MSG, "", None, "null", "None"] \
-                and item["high_level"]["msg"] not in ["Generated image file does not exist", ""]
+
+        def judge_one_item_need_rerun(item):
+            # 临时保存文件路径
+            orgpy_file_low = item['low_level'].pop('original_py_file', None)
+            genpy_file_low = item['low_level'].pop('generated_py_file', None)
+            orgpy_file_high = item['high_level'].pop('original_py_file', None)
+            
+            # 检查是否为默认值
+            is_default = (item['high_level'] == {'resp': None, 'msg': None, 'score': 0.0} and 
+                         item['low_level'] == {
+                             "text_metrics": {"precision": 0, "recall": 0, "f1": 0},
+                             "chart_type_metrics": {"precision": 0, "recall": 0, "f1": 0},
+                             "layout_metrics": {"precision": 0, "recall": 0, "f1": 0},
+                             "color_metrics": {"precision": 0, "recall": 0.0, "f1": 0}
+                         })
+            
+            # 恢复文件路径
+            item['low_level']['original_py_file'] = orgpy_file_low
+            item['low_level']['generated_py_file'] = genpy_file_low
+            item['high_level']['original_py_file'] = orgpy_file_high
+            
+            # 直接返回结果
+            return is_default or (item["high_level"]["resp"] not in [FAIL_MSG, "", None, "null", "None"] 
+                                 and item["high_level"]["msg"] not in ["Generated image file does not exist", ""])
 
         try:
             from pdf2image import convert_from_path
@@ -575,7 +598,7 @@ class ChartMimic(ImageBaseDataset):
             tmp_data = load(tmp_file)
             for k, v in tmp_data.items():
                 # -1 means error for getting response from judge model, so try to rejudge for this item
-                if v[0] == 0 and judge_one_item_success(v[1]):
+                if v[0] == 0 and judge_one_item_need_rerun(v[1]):
                     ans[k] = v
             logger.info(f"Tmp file exists, loaded {len(ans)} data from {tmp_file}")
 
@@ -729,8 +752,15 @@ class ChartMimic(ImageBaseDataset):
         )
 
         # Create splits dict
+        advanced_chart_type = [
+            "3d", "contour", "errorpoint", "density", "hr",
+            "graph", "quiver", "radar", "tree", "violin", "area",
+            "cb", "pip", "multidiff", "heatmap"
+        ]
+        # remain: bar, line, pie, scatter, errorbar, hist, box
         splits = {
             "all": eval_data_all,
+            'basic_type': [item for item in eval_data_all if not listinstr(advanced_chart_type, item.get("example_id").lower())],
             **{
                 task: [item for item in eval_data_all if item.get("task") == task]
                 for task in task_values

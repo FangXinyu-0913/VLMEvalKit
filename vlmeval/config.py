@@ -15,6 +15,7 @@ VideoChatGPT_ROOT = None
 PLLaVA_ROOT = None
 RBDash_ROOT = None
 VITA_ROOT = None
+ChartCoder_ROOT = '/fs-computility/mllm1/shared/fangxinyu-aliyun/plot2code/ChartCoder'
 LLAVA_V1_7B_MODEL_PTH = "Please set your local path to LLaVA-7B-v1.1 here, the model weight is obtained by merging LLaVA delta weight based on vicuna-7b-v1.1 in https://github.com/haotian-liu/LLaVA/blob/main/docs/MODEL_ZOO.md with vicuna-7b-v1.1. "
 
 video_models = {
@@ -239,7 +240,7 @@ api_models = {
         model="gpt-4.1-mini-2025-04-14",
         temperature=0,
         img_size=-1,
-        img_detail="high",
+        img_detail="low",
         retry=10,
         verbose=False,
     ),
@@ -723,6 +724,7 @@ llava_series = {
     "varco-vision-hf": partial(
         LLaVA_OneVision_HF, model_path="NCSOFT/VARCO-VISION-14B-HF"
     ),
+    "ChartCoder": partial(ChartCoder, model_path="xxxllz/ChartCoder", root_path=ChartCoder_ROOT),
 }
 
 vita_series = {
@@ -1212,6 +1214,27 @@ qwen2vl_series = {
     "Qwen2.5-VL-7B-Instruct": partial(
         Qwen2VLChat,
         model_path="Qwen/Qwen2.5-VL-7B-Instruct",
+        min_pixels=1280 * 28 * 28,
+        max_pixels=16384 * 28 * 28,
+        use_custom_prompt=False,
+    ),
+    "Qwen2.5-VL-7B-Instruct-chart2code-160k-data": partial(
+        Qwen2VLChat,
+        model_path="/fs-computility/mllm1/shared/fangxinyu-aliyun/plot2code/LLaMA-Factory/saves/qwen2_5vl-7b/full/sft-160k/checkpoint-30444",
+        min_pixels=1280 * 28 * 28,
+        max_pixels=16384 * 28 * 28,
+        use_custom_prompt=False,
+    ),
+    "Qwen2.5-VL-7B-Instruct-chart2code-sft-160k-onlySingleType": partial(
+        Qwen2VLChat,
+        model_path="/fs-computility/mllm1/shared/fangxinyu-aliyun/plot2code/LLaMA-Factory/saves/qwen2_5vl-7b/full/sft-160k-onlySingleType/checkpoint-21228",
+        min_pixels=1280 * 28 * 28,
+        max_pixels=16384 * 28 * 28,
+        use_custom_prompt=False,
+    ),
+    "Qwen2.5-VL-7B-Instruct-chart2code-sft-160k-onlySingleType-dataProvided": partial(
+        Qwen2VLChat,
+        model_path="/fs-computility/mllm1/shared/fangxinyu-aliyun/plot2code/LLaMA-Factory/saves/qwen2_5vl-7b/full/sft-160k-onlySingleType-dataProvided/checkpoint-21228",
         min_pixels=1280 * 28 * 28,
         max_pixels=16384 * 28 * 28,
         use_custom_prompt=False,
